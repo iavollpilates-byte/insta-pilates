@@ -41,15 +41,17 @@ cp .env.example .env.local
 ```
 
 Preencha `.env.local` com suas credenciais:
-- `NEXT_PUBLIC_SUPABASE_URL` — URL do projeto Supabase
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Chave anon do Supabase
+- `NEXT_PUBLIC_SUPABASE_URL` — [URL do projeto Supabase](https://hmdyythzhrjelrsnspzr.supabase.co)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhtZHl5dGh6aHJqZWxyc25zcHpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5NjM2MDEsImV4cCI6MjA4NzUzOTYwMX0.8XTWc7YSBiyFtb7NV_b9q5ovn_0lSBELhdZSwxF_nJA
 - `ANTHROPIC_API_KEY` — Chave da API Claude (para IA Mentor)
 
 ### 3. Configure o banco (Supabase)
 
 1. Crie um projeto em [supabase.com](https://supabase.com)
-2. Vá em **SQL Editor**
-3. Cole e execute o conteúdo de `supabase/migrations.sql`
+2. Vá em **SQL Editor** e execute na ordem:
+   - `supabase/migrations.sql` — cria tabelas e políticas
+   - `supabase/seed.sql` — usuários de demonstração (Rafael, Editor)
+   - `supabase/policies-anon.sql` — permite uso sem login (opcional; para dev)
 
 ### 4. Rode localmente
 
