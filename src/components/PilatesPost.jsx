@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { fetchPosts, savePost, deletePost, isSupabaseConfigured, fetchCms, saveCms as saveCmsCloud } from "@/lib/supabase-queries";
 
 // ============================================================================
 // PILATESPOST v4 — ALL PHASES: Board + Calendar + AI + Metrics + Trends + CRM + STORIES
@@ -454,7 +455,7 @@ function PostEditor({post,onSave,onClose,onDelete,visibleFields=[],columns,postT
   const setEng=(key,val)=>setF(p=>({...p,engagement:{...p.engagement,[key]:isNaN(Number(val))?0:Number(val)}}));
   return<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(6px)"}}onClick={e=>{if(e.target===e.currentTarget)onClose()}}><div style={{width:"min(700px,95vw)",maxHeight:"90vh",display:"flex",flexDirection:"column",background:T.surface,borderRadius:16,border:`1px solid ${T.border}`,boxShadow:"0 24px 60px rgba(0,0,0,0.2)",animation:"scaleIn 0.2s",overflow:"hidden"}}>
     <div style={{flexShrink:0,padding:"12px 18px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}><Badge color={cols.find(c=>c.id===f.column)?.color}>{cols.find(c=>c.id===f.column)?.icon} {cols.find(c=>c.id===f.column)?.label}</Badge><div style={{display:"flex",gap:4}}><AIS score={f.aiScore}size="lg"/><IconBtn onClick={()=>{if(confirm("Excluir?")){onDelete(f.id);onClose()}}}>🗑️</IconBtn><IconBtn onClick={onClose}>✕</IconBtn></div></div>
-    <div style={{flex:1,minHeight:0,overflowY:"auto",padding:18}}>
+    <div style={{flex:1,minHeight:0,maxHeight:"calc(90vh - 120px)",overflowY:"auto",WebkitOverflowScrolling:"touch",padding:18}}>
       {vis.has("title")&&<div style={{marginBottom:14}}><input value={f.title}onChange={e=>up("title",e.target.value)}placeholder="Título (ex.: CARROSSEL: 'Seu studio...')"style={{width:"100%",background:"transparent",border:"none",color:T.text,fontSize:16,fontWeight:700,fontFamily:T.font,outline:"none",borderBottom:`1px solid ${T.border}`,paddingBottom:8}}/></div>}
       {vis.has("notes")&&<div style={{marginBottom:14}}><div style={{fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",marginBottom:6}}>RASCUNHO (SEMPRE VISÍVEL NO CARD)</div><textarea value={f.notes}onChange={e=>up("notes",e.target.value)}placeholder="Notas internas..."rows={3}style={{width:"100%",background:"rgba(255,255,255,0.03)",border:`1px solid ${T.border}`,borderRadius:8,padding:"10px 12px",color:T.text,fontSize:12,fontFamily:T.font,outline:"none",resize:"vertical"}}/></div>}
       {vis.has("type")&&<div style={{marginBottom:14}}><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{types.map(pt=><button key={pt.id}onClick={()=>up("type",pt.id)}style={{padding:"5px 10px",borderRadius:8,fontSize:11,fontWeight:600,border:f.type===pt.id?`1px solid ${pt.color}60`:`1px solid ${T.border}`,background:f.type===pt.id?`${pt.color}18`:"transparent",color:f.type===pt.id?pt.color:T.textMuted,cursor:"pointer",fontFamily:T.font}}>{pt.icon} {pt.label}</button>)}</div></div>}
@@ -617,16 +618,17 @@ export default function App(){
   Object.assign(T,theme==="light"?T_LIGHT:T_DARK);
   useEffect(()=>{try{typeof localStorage!=="undefined"&&localStorage.setItem(THEME_STORAGE_KEY,theme)}catch(e){}},[theme]);
   const[cms,setCms]=useState(loadCms);
-  useEffect(()=>{saveCms(cms)},[cms]);
+  useEffect(()=>{saveCms(cms);if(isSupabaseConfigured())saveCmsCloud(cms).catch(()=>{})},[cms]);
   const[posts,setPosts]=useState(POSTS);const[view,setView]=useState("board");
+  useEffect(()=>{if(isSupabaseConfigured()){fetchPosts().then(setPosts);fetchCms().then(cloud=>{if(cloud&&typeof cloud==="object"){const d=defaultCms();setCms({columns:cloud.columns?.length?cloud.columns:d.columns,postTypes:cloud.postTypes?.length?cloud.postTypes:d.postTypes,pillars:cloud.pillars?.length?cloud.pillars:d.pillars,users:cloud.users?.length?cloud.users:d.users,cardFormFieldIds:Array.isArray(cloud.cardFormFieldIds)?cloud.cardFormFieldIds:d.cardFormFieldIds,readyColumnIds:Array.isArray(cloud.readyColumnIds)?cloud.readyColumnIds:d.readyColumnIds,alertConfig:{...d.alertConfig,...cloud.alertConfig},specialDates:Array.isArray(cloud.specialDates)?cloud.specialDates:d.specialDates});}});}},[]);
   const users=cms.users?.length?cms.users:USERS;const columns=cms.columns?.length?cms.columns:COLUMNS;const postTypes=cms.postTypes?.length?cms.postTypes:POST_TYPES;const pillars=cms.pillars?.length?cms.pillars:PILLARS;
   const[user,setUser]=useState(()=>{const L=loadCms();return L.users?.length?L.users[0]:USERS[0]});
   useEffect(()=>{if(users.length&&!users.some(u=>u.id===user.id))setUser(users[0])},[users.map(u=>u.id).join(",")]);
   const[editPost,setEditPost]=useState(null);const[dp,setDp]=useState(null);const[showAI,setShowAI]=useState(false);const[filter,setFilter]=useState({type:null});const[search,setSearch]=useState("");
   const cardFormFieldIds=cms.cardFormFieldIds??CARD_FORM_FIELDS.map(f=>f.id);const setCardFormFieldIds=useCallback(ids=>setCms(prev=>({...prev,cardFormFieldIds:ids})),[]);
-  const save=useCallback(p=>{setPosts(prev=>prev.find(x=>x.id===p.id)?prev.map(x=>x.id===p.id?p:x):[...prev,p])},[]);
-  const del=useCallback(id=>setPosts(prev=>prev.filter(x=>x.id!==id)),[]);
-  const drop=useCallback(colId=>{if(dp&&dp.column!==colId)setPosts(prev=>prev.map(p=>p.id===dp.id?{...p,column:colId}:p));setDp(null)},[dp]);
+  const save=useCallback(p=>{setPosts(prev=>prev.find(x=>x.id===p.id)?prev.map(x=>x.id===p.id?p:x):[...prev,p]);if(isSupabaseConfigured())savePost(p).catch(()=>{})},[]);
+  const del=useCallback(id=>{setPosts(prev=>prev.filter(x=>x.id!==id));if(isSupabaseConfigured())deletePost(id).catch(()=>{})},[]);
+  const drop=useCallback(colId=>{if(dp&&dp.column!==colId){const updated={...dp,column:colId};setPosts(prev=>prev.map(p=>p.id===dp.id?updated:p));if(isSupabaseConfigured())savePost(updated).catch(()=>{})}setDp(null)},[dp]);
   const newP=useCallback(colId=>{setEditPost({id:genId(),column:colId,type:"reel",title:"",caption:"",tags:[],assignee:user.id,createdBy:user.id,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),scheduledDate:null,scheduledTime:null,engagement:null,notes:"",links:[],attachments:[],aiScore:null,aiSuggestion:null})},[user.id]);
   const filtered=useMemo(()=>posts.filter(p=>{if(search&&!p.title.toLowerCase().includes(search.toLowerCase())&&!p.caption.toLowerCase().includes(search.toLowerCase()))return false;if(filter.type&&p.type!==filter.type)return false;return true}),[posts,filter,search]);
   const readyColumnIds=cms.readyColumnIds??["agendado"];const readyCount=useMemo(()=>posts.filter(p=>readyColumnIds.includes(p.column)).length,[posts,readyColumnIds]);
