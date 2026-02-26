@@ -23,10 +23,13 @@ const PILLARS=[{id:"provocativo",label:"Provocativo",color:"#FF6B35"},{id:"educa
 const USERS=[{id:"rafael",name:"Rafael",role:"owner",avatar:"R",color:"#FF6B35",email:""},{id:"editor",name:"Editor",role:"editor",avatar:"E",color:"#4ECDC4",email:""}];
 
 const CMS_STORAGE_KEY="insta-pilates-cms";
+const POSTS_STORAGE_KEY="insta-pilates-posts";
 const GEMINI_KEY_STORAGE="insta-pilates-gemini-key";
 const defaultCms=()=>({columns:[...COLUMNS],postTypes:[...POST_TYPES],pillars:[...PILLARS],users:USERS.map(u=>({...u,email:u.email||""})),cardFormFieldIds:CARD_FORM_FIELDS.map(f=>f.id),readyColumnIds:["agendado"],alertConfig:{scheduledEnabled:true,scheduledDaysAfter:1,draftEnabled:true,draftDaysStale:7,specialDatesDaysBefore:12},specialDates:[]});
 function loadCms(){try{const raw=typeof localStorage!=="undefined"?localStorage.getItem(CMS_STORAGE_KEY):null;if(!raw)return defaultCms();const p=JSON.parse(raw);return{columns:p.columns?.length?p.columns:defaultCms().columns,postTypes:p.postTypes?.length?p.postTypes:defaultCms().postTypes,pillars:p.pillars?.length?p.pillars:defaultCms().pillars,users:p.users?.length?p.users:defaultCms().users,cardFormFieldIds:Array.isArray(p.cardFormFieldIds)?p.cardFormFieldIds:defaultCms().cardFormFieldIds,readyColumnIds:Array.isArray(p.readyColumnIds)?p.readyColumnIds:defaultCms().readyColumnIds,alertConfig:{...defaultCms().alertConfig,...p.alertConfig},specialDates:Array.isArray(p.specialDates)?p.specialDates:defaultCms().specialDates};}catch(e){return defaultCms();}}
 function saveCms(cms){try{typeof localStorage!=="undefined"&&localStorage.setItem(CMS_STORAGE_KEY,JSON.stringify(cms));}catch(e){}}
+function loadPosts(){try{const raw=typeof localStorage!=="undefined"?localStorage.getItem(POSTS_STORAGE_KEY):null;if(!raw)return POSTS;return JSON.parse(raw);}catch(e){return POSTS;}}
+function savePosts(posts){try{typeof localStorage!=="undefined"&&localStorage.setItem(POSTS_STORAGE_KEY,JSON.stringify(posts));}catch(e){}}
 
 // --- STORY TYPES & TEMPLATES ---
 const STORY_TYPES=[
@@ -619,7 +622,8 @@ export default function App(){
   useEffect(()=>{try{typeof localStorage!=="undefined"&&localStorage.setItem(THEME_STORAGE_KEY,theme)}catch(e){}},[theme]);
   const[cms,setCms]=useState(loadCms);
   useEffect(()=>{saveCms(cms);if(isSupabaseConfigured())saveCmsCloud(cms).catch(()=>{})},[cms]);
-  const[posts,setPosts]=useState(POSTS);const[view,setView]=useState("board");
+  const[posts,setPosts]=useState(loadPosts);const[view,setView]=useState("board");
+  useEffect(()=>{savePosts(posts)},[posts]);
   useEffect(()=>{if(isSupabaseConfigured()){fetchPosts().then(setPosts);fetchCms().then(cloud=>{if(cloud&&typeof cloud==="object"){const d=defaultCms();setCms({columns:cloud.columns?.length?cloud.columns:d.columns,postTypes:cloud.postTypes?.length?cloud.postTypes:d.postTypes,pillars:cloud.pillars?.length?cloud.pillars:d.pillars,users:cloud.users?.length?cloud.users:d.users,cardFormFieldIds:Array.isArray(cloud.cardFormFieldIds)?cloud.cardFormFieldIds:d.cardFormFieldIds,readyColumnIds:Array.isArray(cloud.readyColumnIds)?cloud.readyColumnIds:d.readyColumnIds,alertConfig:{...d.alertConfig,...cloud.alertConfig},specialDates:Array.isArray(cloud.specialDates)?cloud.specialDates:d.specialDates});}});}},[]);
   const users=cms.users?.length?cms.users:USERS;const columns=cms.columns?.length?cms.columns:COLUMNS;const postTypes=cms.postTypes?.length?cms.postTypes:POST_TYPES;const pillars=cms.pillars?.length?cms.pillars:PILLARS;
   const[user,setUser]=useState(()=>{const L=loadCms();return L.users?.length?L.users[0]:USERS[0]});
