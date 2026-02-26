@@ -624,7 +624,7 @@ export default function App(){
   useEffect(()=>{saveCms(cms);if(isSupabaseConfigured())saveCmsCloud(cms).catch(()=>{})},[cms]);
   const[posts,setPosts]=useState(loadPosts);const[view,setView]=useState("board");
   useEffect(()=>{savePosts(posts)},[posts]);
-  useEffect(()=>{if(isSupabaseConfigured()){fetchPosts().then(cloudPosts=>{if(cloudPosts&&cloudPosts.length>0)setPosts(cloudPosts)});fetchCms().then(cloud=>{if(cloud&&typeof cloud==="object"){const d=defaultCms();setCms({columns:cloud.columns?.length?cloud.columns:d.columns,postTypes:cloud.postTypes?.length?cloud.postTypes:d.postTypes,pillars:cloud.pillars?.length?cloud.pillars:d.pillars,users:cloud.users?.length?cloud.users:d.users,cardFormFieldIds:Array.isArray(cloud.cardFormFieldIds)?cloud.cardFormFieldIds:d.cardFormFieldIds,readyColumnIds:Array.isArray(cloud.readyColumnIds)?cloud.readyColumnIds:d.readyColumnIds,alertConfig:{...d.alertConfig,...cloud.alertConfig},specialDates:Array.isArray(cloud.specialDates)?cloud.specialDates:d.specialDates});}});}},[]);
+  useEffect(()=>{},[]);
   const users=cms.users?.length?cms.users:USERS;const columns=cms.columns?.length?cms.columns:COLUMNS;const postTypes=cms.postTypes?.length?cms.postTypes:POST_TYPES;const pillars=cms.pillars?.length?cms.pillars:PILLARS;
   const[user,setUser]=useState(()=>{const L=loadCms();return L.users?.length?L.users[0]:USERS[0]});
   useEffect(()=>{if(users.length&&!users.some(u=>u.id===user.id))setUser(users[0])},[users.map(u=>u.id).join(",")]);
