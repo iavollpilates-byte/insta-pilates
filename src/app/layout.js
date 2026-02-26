@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "PilatesPost — Gestão de Conteúdo Instagram",
+  title: "PilatesPool — Gestão de Conteúdo Instagram",
   description: "Planeje, organize e analise seu conteúdo de Pilates no Instagram com IA",
 };
 
