@@ -1,0 +1,18 @@
+---
+description: Fazer commit automático ao finalizar o serviço
+alwaysApply: true
+---
+
+# Commit ao finalizar
+
+Sempre que finalizar o serviço (correções, features, refatorações), faça o **COMMIT automático** das alterações:
+
+1. Verificar o que mudou: `git status`
+2. Incluir os arquivos alterados: `git add` (ou `git add -A` se for o caso)
+3. Fazer o commit com mensagem clara e em português, por exemplo:
+   - `fix: descrição do bug corrigido`
+   - `feat: descrição da nova funcionalidade`
+   - `style: ajuste de UI/UX`
+4. Executar: `git commit -m "sua mensagem"`
+
+Não pergunte se o usuário quer commitar — faça o commit como parte do encerramento do trabalho, a menos que o usuário peça explicitamente para não commitar.
