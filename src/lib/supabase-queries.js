@@ -35,9 +35,9 @@ function rowToPost(row, metrics = null) {
 }
 
 export async function fetchPosts() {
-  if (!supabase) return [];
+  if (!supabase) return null;
   const { data: rows, error } = await supabase.from("posts").select("*").order("updated_at", { ascending: false });
-  if (error) return [];
+  if (error) return null;
   const ids = (rows || []).map((r) => r.id);
   let metricsByPost = {};
   if (ids.length > 0) {
