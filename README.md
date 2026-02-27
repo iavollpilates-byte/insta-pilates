@@ -69,6 +69,28 @@ Acesse: [http://localhost:3000](http://localhost:3000)
 
 **Produção:** [https://insta-pilates.vercel.app/](https://insta-pilates.vercel.app/)
 
+#### Deploy correto para insta-pilates.vercel.app
+
+O projeto em produção está em **[ia-volls-projects/insta-pilates](https://vercel.com/ia-volls-projects/insta-pilates)** (conta ia.vollpilates@gmail.com / iavollpilates-byte). O CLI nesta máquina pode estar logado em outra conta; para atualizar o site:
+
+1. **Login na conta certa** (na sua máquina):
+   ```bash
+   npx vercel login
+   ```
+   Use **ia.vollpilates@gmail.com** (ou a conta com acesso ao time ia-volls-projects).
+
+2. **Deploy** (na pasta do projeto):
+   ```bash
+   ./scripts/deploy-vercel.sh
+   ```
+   Ou manualmente:
+   ```bash
+   npx vercel link --scope ia-volls-projects --project insta-pilates --yes
+   npx vercel --prod --yes
+   ```
+
+3. **Alternativa:** Se o Git do repo estiver conectado a esse projeto na Vercel, basta dar `git push origin main` (com uma conta que tenha permissão no GitHub).
+
 ## 📁 Estrutura
 
 ```
