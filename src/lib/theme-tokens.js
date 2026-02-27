@@ -67,6 +67,34 @@ export function setThemeTokens(theme) {
   Object.assign(T, theme === "light" ? T_LIGHT : T_DARK);
 }
 
+// Conta Instagram → metadados visuais (label, cor, ícone)
+// Slugs precisam bater com o campo `slug` da tabela instagram_accounts.
+export const ACCOUNT_THEMES = {
+  rafael: {
+    label: "Rafael",
+    color: "#FF6B35",
+    icon: "👑",
+  },
+  clara: {
+    label: "Clara",
+    color: "#4ECDC4",
+    icon: "✨",
+  },
+};
+
+export function getAccountTheme(account) {
+  if (!account) {
+    return { label: "Conta", color: T.accent, icon: "📱" };
+  }
+  const bySlug = ACCOUNT_THEMES[account.slug];
+  if (bySlug) return bySlug;
+  return {
+    label: account.name || "Conta",
+    color: T.accent,
+    icon: "📱",
+  };
+}
+
 export const COLUMNS = [
   { id: "ideias_rascunhos", label: "Ideias e Rascunhos", icon: "💡", color: "#FF6B35", desc: "Brainstorms" },
   { id: "prod", label: "Prod. e Desenvolvimento", icon: "✍️", color: "#F7C948", desc: "Em desenvolvimento" },

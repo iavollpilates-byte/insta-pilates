@@ -11,7 +11,8 @@ import {
   PILLARS,
   USERS,
   CMS_STORAGE_KEY,
-  POSTS_STORAGE_KEY,  GEMINI_KEY_STORAGE,
+  POSTS_STORAGE_KEY,
+  GEMINI_KEY_STORAGE,
   defaultCms,
   loadCms,
   saveCms,
@@ -24,6 +25,7 @@ import {
   DAY_NAMES,
   DAY_NAMES_CAL,
   getWeekDates,
+  getAccountTheme,
   CSS,
 } from "@/lib/theme-tokens";
 import ImportIdeasModal from "./ImportIdeasModal";
@@ -612,6 +614,7 @@ export default function App(){
   const DEFAULT_ACCOUNTS_LOCAL=[{id:"local-rafael",name:"Rafael",slug:"rafael"},{id:"local-clara",name:"Clara",slug:"clara"}];
   const[accounts,setAccounts]=useState([]);
   const[currentAccount,setCurrentAccount]=useState(null);
+  const currentAccountTheme=currentAccount?getAccountTheme(currentAccount):getAccountTheme(null);
 
   useEffect(()=>{
     if(!isSupabaseConfigured()){
@@ -720,7 +723,41 @@ export default function App(){
       <div style={{display:"flex",alignItems:"center",gap:12}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:28,height:28,borderRadius:8,background:`linear-gradient(135deg,${T.accent},${T.yellow})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:T.logoText||"#FFF",fontFamily:T.mono}}>C</div><span style={{fontSize:14,fontWeight:800,background:`linear-gradient(135deg,${T.accent},${T.yellow})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>CORATERIA</span></div>
         <div style={{width:1,height:18,background:T.border,opacity:0.8}}/>
-        {accounts.length>0&&<div style={{display:"flex",gap:2,background:T.card,borderRadius:6,padding:2}}>{accounts.map(acc=><button key={acc.id}type="button"onClick={()=>{setCurrentAccount(acc);if(isSupabaseConfigured())fetchPosts(acc.id).then(data=>setPosts(Array.isArray(data)?data:[]));else setPosts(loadPosts(acc.slug));}}style={{padding:"4px 10px",borderRadius:4,fontSize:11,fontWeight:600,border:currentAccount?.id===acc.id?`1px solid ${T.accent}80`:"1px solid transparent",background:currentAccount?.id===acc.id?T.accentGlow:"transparent",color:currentAccount?.id===acc.id?T.accent:T.textMuted,cursor:"pointer",fontFamily:T.font}}>{acc.name}</button>)}</div>}
+        {accounts.length>0&&<div style={{display:"flex",alignItems:"center",gap:6,background:T.card,borderRadius:8,padding:"4px 6px"}}>
+          <span style={{fontSize:11,color:T.textMuted}}>Conta:</span>
+          <div style={{display:"flex",gap:4}}>
+            {accounts.map(acc=>{
+              const theme=getAccountTheme(acc);
+              const active=currentAccount?.id===acc.id;
+              return(
+                <button
+                  key={acc.id}
+                  type="button"
+                  aria-label={`Selecionar conta ${theme.label}`}
+                  onClick={()=>{setCurrentAccount(acc);if(isSupabaseConfigured())fetchPosts(acc.id).then(data=>setPosts(Array.isArray(data)?data:[]));else setPosts(loadPosts(acc.slug));}}
+                  style={{
+                    display:"flex",
+                    alignItems:"center",
+                    gap:4,
+                    padding:"4px 10px",
+                    borderRadius:999,
+                    fontSize:11,
+                    fontWeight:700,
+                    border:active?`1px solid ${theme.color}`:`1px solid ${T.border}`,
+                    background:active?`${theme.color}22`:"transparent",
+                    color:active?theme.color:T.textMuted,
+                    cursor:"pointer",
+                    fontFamily:T.font,
+                    transition:"all 0.15s",
+                  }}
+                >
+                  <span aria-hidden="true">{theme.icon}</span>
+                  <span>{theme.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>}
         <div style={{width:1,height:18,background:T.border,opacity:0.8}}/>
         <div style={{display:"flex",gap:2,background:T.card,borderRadius:8,padding:3}} role="tablist">{navs.map(v=><button key={v.id}type="button"role="tab"aria-selected={view===v.id}aria-label={`Ver ${v.l}`}onClick={()=>setView(v.id)}style={{padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:T.font,background:view===v.id?T.accentGlow:"transparent",color:view===v.id?T.accent:T.textMuted,transition:"all 0.15s"}}>{v.i} {v.l}</button>)}</div>
         <button onClick={()=>setShowImportIdeas(true)}style={{padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,border:`1px solid ${T.accentBorder}`,background:"transparent",color:T.accent,cursor:"pointer",fontFamily:T.font}}>Importar ideias</button>
@@ -734,5 +771,6 @@ export default function App(){
     {showImportIdeas&&<ImportIdeasModal onClose={()=>setShowImportIdeas(false)} setPosts={setPosts} user={user} savePostToBackend={isSupabaseConfigured()?(p=>savePost(p,currentAccount?.id)):null}/>}
     <div style={{position:"fixed",bottom:0,left:0,right:0,height:24,background:T.surface,backdropFilter:"blur(10px)",borderTop:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",gap:12,fontSize:9,color:T.textDim,zIndex:90}}>
       <span>{posts.length} posts</span><span title="Prontos agora">✓ {readyCount} prontos</span><span>💡{posts.filter(p=>p.column==="ideias_rascunhos").length}</span><span>✍️{posts.filter(p=>p.column==="prod").length}</span><span>📅{posts.filter(p=>p.column==="agendado").length}</span><span>🚀{posts.filter(p=>p.column==="publicado").length}</span><span style={{color:T.border}}>|</span>{lastSaveStatus==="enviando"&&<span style={{color:T.accent}}>Salvando…</span>}{lastSaveStatus==="ok"&&<span style={{color:"#22c55e"}}>Salvo</span>}{lastSaveStatus==="erro"&&<span style={{color:T.red}}>Erro ao salvar (veja acima)</span>}{!isSupabaseConfigured()&&<span title="Configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY para salvar na nuvem" style={{color:T.yellow}}>Salvamento local</span>}<span style={{color:T.border}}>|</span><span><span style={{color:user.color,fontWeight:700}}>{user.name}</span> {user.role==="owner"?"👑":"✏️"}</span>
+      {currentAccount&&<><span style={{color:T.border}}>|</span><span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:999,border:`1px solid ${currentAccountTheme.color}55`,background:`${currentAccountTheme.color}15`,color:currentAccountTheme.color,fontWeight:600}}><span aria-hidden="true">{currentAccountTheme.icon}</span><span>Conta atual: {currentAccountTheme.label}</span></span></>}
     </div>
   </div>}
