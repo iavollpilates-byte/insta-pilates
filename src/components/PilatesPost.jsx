@@ -625,8 +625,11 @@ export default function App(){
   },[]);
 
   useEffect(()=>{saveCms(cms);if(isSupabaseConfigured())saveCmsCloud(cms).catch(err=>setSaveError(err?.message||"Erro ao salvar CMS"))},[cms]);
-  const[posts,setPosts]=useState(loadPosts);const[view,setView]=useState("board");
-  useEffect(()=>{savePosts(posts)},[posts]);
+  const[posts,setPosts]=useState([]);
+  const postsHydratedRef=useRef(false);
+  useEffect(()=>{ setPosts(loadPosts()); postsHydratedRef.current=true; },[]);
+  useEffect(()=>{ if(postsHydratedRef.current) savePosts(posts); },[posts]);
+  const[view,setView]=useState("board");
   const users=cms.users?.length?cms.users:USERS;const columns=cms.columns?.length?cms.columns:COLUMNS;const postTypes=cms.postTypes?.length?cms.postTypes:POST_TYPES;const pillars=cms.pillars?.length?cms.pillars:PILLARS;
   const[user,setUser]=useState(()=>{const L=loadCms();return L.users?.length?L.users[0]:USERS[0]});
   useEffect(()=>{if(users.length&&!users.some(u=>u.id===user.id))setUser(users[0])},[users.map(u=>u.id).join(",")]);
