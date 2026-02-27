@@ -718,7 +718,13 @@ export default function App(){
   const filtered=useMemo(()=>posts.filter(p=>{if(search&&!p.title.toLowerCase().includes(search.toLowerCase())&&!p.caption.toLowerCase().includes(search.toLowerCase()))return false;if(filter.type&&p.type!==filter.type)return false;return true}),[posts,filter,search]);
   const readyColumnIds=cms.readyColumnIds??["agendado"];const readyCount=useMemo(()=>posts.filter(p=>readyColumnIds.includes(p.column)).length,[posts,readyColumnIds]);
   const navs=[{id:"board",l:"Board",i:"◻"},{id:"calendar",l:"Calendário",i:"◫"},{id:"cms",l:"CMS",i:"📋"}];
-  return<div data-theme={theme}style={{minHeight:"100vh",background:(()=>{const pb=cms.pageBackgrounds||{};const byView=pb[view];if(byView&&String(byView).trim())return byView.trim();return currentAccount?.slug==="clara"?`linear-gradient(rgba(255,182,193,0.06) 0%, rgba(255,182,193,0.06) 100%), ${T.bg}`:T.bg;})(),fontFamily:T.font,color:T.text}}>
+  const rootBackground=useMemo(()=>{
+    const pb=cms.pageBackgrounds||{};
+    const forThisView=view?pb[view]:undefined;
+    if(forThisView!=null&&String(forThisView).trim())return String(forThisView).trim();
+    return currentAccount?.slug==="clara"?`linear-gradient(rgba(255,182,193,0.06) 0%, rgba(255,182,193,0.06) 100%), ${T.bg}`:T.bg;
+  },[view,cms.pageBackgrounds,currentAccount?.slug,T.bg]);
+  return<div data-theme={theme}style={{minHeight:"100vh",background:rootBackground,fontFamily:T.font,color:T.text}}>
     {(syncError||saveError)&&<div style={{padding:"6px 16px",background:(syncError?T.red:T.yellow)+"22",color:syncError?T.red:T.yellow,fontSize:11,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}} role="alert"><span>{syncError||saveError}</span><button type="button"aria-label="Fechar mensagem"onClick={()=>{setSyncError(null);setSaveError(null);try{localStorage.removeItem("pilatespost_last_save_error")}catch(e){}}}style={{background:"transparent",border:"none",color:"inherit",cursor:"pointer",fontSize:14}}>✕</button></div>}
     {syncLoading&&<div style={{height:3,background:T.border,overflow:"hidden"}} aria-hidden="true"><div style={{height:"100%",width:"30%",background:T.accent,animation:"pulse 1.5s ease-in-out infinite"}}/></div>}
     <header style={{height:48,padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${T.border}`,background:T.surface,backdropFilter:"blur(12px)",position:"sticky",top:0,zIndex:100,boxShadow:"0 1px 0 0 "+T.border}}>

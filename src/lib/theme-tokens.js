@@ -182,7 +182,16 @@ export function loadCms() {
       readyColumnIds: Array.isArray(p.readyColumnIds) ? p.readyColumnIds : defaultCms().readyColumnIds,
       alertConfig: { ...defaultCms().alertConfig, ...p.alertConfig },
       specialDates: Array.isArray(p.specialDates) ? p.specialDates : defaultCms().specialDates,
-      pageBackgrounds: p.pageBackgrounds && typeof p.pageBackgrounds === "object" ? { ...defaultCms().pageBackgrounds, ...p.pageBackgrounds } : defaultCms().pageBackgrounds,
+      pageBackgrounds: (() => {
+        const def = defaultCms().pageBackgrounds;
+        if (!p.pageBackgrounds || typeof p.pageBackgrounds !== "object") return def;
+        const r = p.pageBackgrounds;
+        return {
+          board: r.board ?? r.Board ?? "",
+          calendar: r.calendar ?? r.Calendar ?? "",
+          cms: r.cms ?? r.CMS ?? "",
+        };
+      })(),
     };
   } catch (e) {
     return defaultCms();
