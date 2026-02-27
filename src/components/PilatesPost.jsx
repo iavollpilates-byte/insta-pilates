@@ -616,8 +616,8 @@ export default function App(){
     Promise.all([fetchCms(),fetchPosts()])
       .then(([cmsData,postsData])=>{
         if(cancelled)return;
-        if(cmsData&&typeof cmsData==="object")setCms(prev=>({...defaultCms(),...prev,...cmsData,columns:cmsData.columns?.length?cmsData.columns:prev.columns,postTypes:cmsData.postTypes?.length?cmsData.postTypes:prev.postTypes,pillars:cmsData.pillars?.length?cmsData.pillars:prev.pillars,users:cmsData.users?.length?cmsData.users:prev.users}));
-        if(postsData&&Array.isArray(postsData))setPosts(postsData);
+        if(cmsData&&typeof cmsData==="object"&&(cmsData.columns?.length>0||cmsData.postTypes?.length>0||cmsData.pillars?.length>0||cmsData.users?.length>0))setCms(prev=>({...defaultCms(),...prev,...cmsData,columns:cmsData.columns?.length?cmsData.columns:prev.columns,postTypes:cmsData.postTypes?.length?cmsData.postTypes:prev.postTypes,pillars:cmsData.pillars?.length?cmsData.pillars:prev.pillars,users:cmsData.users?.length?cmsData.users:prev.users}));
+        if(postsData&&Array.isArray(postsData)&&postsData.length>0)setPosts(postsData);
       })
       .catch(err=>{ if(!cancelled)setSyncError(err?.message||"Falha ao carregar dados"); })
       .finally(()=>{ if(!cancelled)setSyncLoading(false); });
