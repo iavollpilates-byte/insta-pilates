@@ -223,7 +223,13 @@ export function subscribeToPosts(setPosts, onStatusChange) {
       { event: "*", schema: "public", table: "posts" },
       (payload) => {
         if (payload.eventType === "INSERT" && payload.new) {
-          setPosts((prev) => [...prev, rowToPost(payload.new)]);
+          const newPost = rowToPost(payload.new);
+          const id = newPost.id;
+          setPosts((prev) => {
+            const exists = prev.some((p) => p.id === id);
+            if (exists) return prev.map((p) => (p.id === id ? newPost : p));
+            return [...prev, newPost];
+          });
         } else if (payload.eventType === "UPDATE" && payload.new) {
           const id = payload.new.app_id || payload.new.id;
           setPosts((prev) =>
