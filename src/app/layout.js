@@ -1,4 +1,19 @@
 import "./globals.css";
+import { DM_Sans, JetBrains_Mono } from "next/font/google";
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-dm-sans",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
 
 export const metadata = {
   title: "CORATERIA — Gestão de Conteúdo Instagram",
@@ -24,7 +39,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className="min-h-full antialiased">{children}</body>
+      <body className={`${dmSans.variable} ${jetbrainsMono.variable} min-h-full antialiased`}>{children}</body>
     </html>
   );
 }

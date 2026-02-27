@@ -29,8 +29,8 @@ export const T_DARK = {
   purpleBg: "rgba(167,139,250,0.06)",
   purpleBorder: "rgba(167,139,250,0.25)",
   pink: "#FF8FAB",
-  font: "'DM Sans',-apple-system,sans-serif",
-  mono: "'JetBrains Mono','Fira Code',monospace",
+  font: "var(--font-dm-sans),-apple-system,sans-serif",
+  mono: "var(--font-jetbrains-mono),'Fira Code',monospace",
 };
 export const T_LIGHT = {
   bg: "#FAFAFC",
@@ -57,8 +57,8 @@ export const T_LIGHT = {
   purpleBg: "rgba(124,58,237,0.08)",
   purpleBorder: "rgba(124,58,237,0.25)",
   pink: "#DB2777",
-  font: "'DM Sans',-apple-system,sans-serif",
-  mono: "'JetBrains Mono','Fira Code',monospace",
+  font: "var(--font-dm-sans),-apple-system,sans-serif",
+  mono: "var(--font-jetbrains-mono),'Fira Code',monospace",
 };
 
 export const T = { ...T_DARK };
@@ -167,8 +167,15 @@ export function loadPosts() {
   try {
     const raw = typeof localStorage !== "undefined" ? localStorage.getItem(POSTS_STORAGE_KEY) : null;
     if (!raw) return POSTS;
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    // #region agent log
+    fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',runId:'pre-fix',hypothesisId:'H_local_storage',location:'theme-tokens.js:loadPosts',message:'loadPosts ok',data:{hasRaw:true,len:Array.isArray(parsed)?parsed.length:null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    return parsed;
   } catch (e) {
+    // #region agent log
+    fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',runId:'pre-fix',hypothesisId:'H_local_storage',location:'theme-tokens.js:loadPosts',message:'loadPosts error',data:{errorMessage:e?.message||String(e)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     return POSTS;
   }
 }
@@ -176,7 +183,16 @@ export function loadPosts() {
 export function savePosts(posts) {
   try {
     typeof localStorage !== "undefined" && localStorage.setItem(POSTS_STORAGE_KEY, JSON.stringify(posts));
-  } catch (e) {}
+    // #region agent log
+    fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',runId:'pre-fix',hypothesisId:'H_local_storage',location:'theme-tokens.js:savePosts',message:'savePosts ok',data:{len:Array.isArray(posts)?posts.length:null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    return true;
+  } catch (e) {
+    // #region agent log
+    fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',runId:'pre-fix',hypothesisId:'H_local_storage',location:'theme-tokens.js:savePosts',message:'savePosts error',data:{errorMessage:e?.message||String(e)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    return false;
+  }
 }
 
 export const genId = () => "x" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);

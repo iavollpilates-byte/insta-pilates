@@ -48,10 +48,11 @@ Preencha `.env.local` com suas credenciais:
 ### 3. Configure o banco (Supabase)
 
 1. Crie um projeto em [supabase.com](https://supabase.com)
-2. Vá em **SQL Editor** e execute na ordem:
-   - `supabase/migrations.sql` — cria tabelas e políticas
-   - `supabase/seed.sql` — usuários de demonstração (Rafael, Editor)
-   - `supabase/policies-anon.sql` — permite uso sem login (opcional; para dev)
+2. Vá em **SQL Editor** e execute **na ordem**:
+   - `supabase/migrations.sql` — cria todas as tabelas, políticas, Realtime e a seção de **posts + app_cms** (necessária para os cards do board salvarem)
+   - `supabase/seed.sql` — usuários de demonstração (opcional)
+   - `supabase/policies-anon.sql` — uso sem login (opcional; para dev)
+3. Se você já tinha rodado uma versão antiga de `migrations.sql` e os cards não salvam, execute de novo o `migrations.sql` completo (a seção final atualiza a tabela `posts` e cria `app_cms`).
 
 ### 4. Rode localmente
 
@@ -64,7 +65,7 @@ Acesse: [http://localhost:3000](http://localhost:3000)
 ### 5. Deploy (Vercel)
 
 1. Conecte o repo no [vercel.com](https://vercel.com)
-2. Adicione as variáveis de ambiente
+2. Adicione as variáveis de ambiente (obrigatórias para os cards salvarem na nuvem): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 3. Deploy automático a cada push
 
 **Produção:** [https://insta-pilates.vercel.app/](https://insta-pilates.vercel.app/)

@@ -607,7 +607,7 @@ export default function App(){
   const[cms,setCms]=useState(loadCms);
   const[syncLoading,setSyncLoading]=useState(!!isSupabaseConfigured());
   const[syncError,setSyncError]=useState(null);
-  const[saveError,setSaveError]=useState(null);
+  const[saveError,setSaveError]=useState(()=>{try{return typeof localStorage!=="undefined"?localStorage.getItem("pilatespost_last_save_error"):null}catch(e){return null}});
 
   useEffect(()=>{
     if(!isSupabaseConfigured()){ setSyncLoading(false); return; }
@@ -627,13 +627,52 @@ export default function App(){
   useEffect(()=>{saveCms(cms);if(isSupabaseConfigured())saveCmsCloud(cms).catch(err=>setSaveError(err?.message||"Erro ao salvar CMS"))},[cms]);
   const[posts,setPosts]=useState([]);
   const postsHydratedRef=useRef(false);
+  const skipFirstLocalPersistRef=useRef(true);
   const[realtimeConnected,setRealtimeConnected]=useState(false);
   useEffect(()=>{
-    if(!isSupabaseConfigured()){ setPosts(loadPosts()); postsHydratedRef.current=true; }
+    if(!isSupabaseConfigured()){
+      const loaded=loadPosts();
+      setPosts(prev=>{
+        const prevLen=Array.isArray(prev)?prev.length:0;
+        const loadedLen=Array.isArray(loaded)?loaded.length:0;
+        const applied=prevLen===0;
+        // #region agent log
+        fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',runId:'pre-fix',hypothesisId:'H_local_race',location:'PilatesPost.jsx:postsHydrate',message:'hydrate local posts',data:{prevLen,loadedLen,applied},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        return applied?loaded:prev;
+      });
+      postsHydratedRef.current=true;
+    }
   },[]);
   useEffect(()=>{
-    if(!isSupabaseConfigured()&&postsHydratedRef.current) savePosts(posts);
+    if(!isSupabaseConfigured()&&postsHydratedRef.current){
+      const len=Array.isArray(posts)?posts.length:0;
+      if(skipFirstLocalPersistRef.current&&len===0){
+        skipFirstLocalPersistRef.current=false;
+        // #region agent log
+        fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',runId:'pre-fix',hypothesisId:'H_local_wipe',location:'PilatesPost.jsx:savePostsEffect',message:'skip initial empty persist',data:{len},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        return;
+      }
+      skipFirstLocalPersistRef.current=false;
+      savePosts(posts);
+    }
   },[posts]);
+  useEffect(()=>{
+    if(typeof document==="undefined")return;
+    // #region agent log
+    try{
+      const styles=Array.from(document.querySelectorAll("style"));
+      const links=Array.from(document.querySelectorAll("link"));
+      const hasMinified=styles.some(s=>String(s.textContent||"").includes("slideRight{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}"));
+      const fontsStyle=styles.find(s=>String(s.textContent||"").includes("fonts.googleapis.com"));
+      const fontsStyleText=String(fontsStyle?.textContent||"");
+      const fontsStyleHasEntities=fontsStyleText.includes("&amp;")||fontsStyleText.includes("&#x27;");
+      const headLinkFonts=links.some(l=>String(l.getAttribute("href")||"").includes("fonts.googleapis.com"));
+      fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',runId:'post-fix',hypothesisId:'H_hydration_style',location:'PilatesPost.jsx:styleScan',message:'scan style/link tags',data:{styleCount:styles.length,hasMinified,fontsStylePresent:!!fontsStyle,fontsStyleHasEntities,headLinkFonts},timestamp:Date.now()})}).catch(()=>{});
+    }catch(e){}
+    // #endregion
+  },[]);
   useEffect(()=>{
     if(!isSupabaseConfigured()||syncLoading) return;
     const unsub=subscribeToPosts(setPosts, setRealtimeConnected);
@@ -645,10 +684,16 @@ export default function App(){
   useEffect(()=>{if(users.length&&!users.some(u=>u.id===user.id))setUser(users[0])},[users.map(u=>u.id).join(",")]);
   const[editPost,setEditPost]=useState(null);const[dp,setDp]=useState(null);const[showAI,setShowAI]=useState(false);const[showImportIdeas,setShowImportIdeas]=useState(false);const[filter,setFilter]=useState({type:null});const[search,setSearch]=useState("");
   const cardFormFieldIds=cms.cardFormFieldIds??CARD_FORM_FIELDS.map(f=>f.id);const setCardFormFieldIds=useCallback(ids=>setCms(prev=>({...prev,cardFormFieldIds:ids})),[]);
+  const[lastSaveStatus,setLastSaveStatus]=useState(null);
   const save=useCallback(p=>{
+    // #region agent log
+    const _d={postId:p?.id,column:p?.column,isSupabase:!!isSupabaseConfigured()};
+    fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',location:'PilatesPost.jsx:save',message:'save() called',data:_d,timestamp:Date.now(),hypothesisId:'H1_H2'})}).catch(()=>{});
+    // #endregion
     setSaveError(null);
+    if(!isSupabaseConfigured()) postsHydratedRef.current=true;
     setPosts(prev=>prev.find(x=>x.id===p.id)?prev.map(x=>x.id===p.id?p:x):[...prev,p]);
-    if(isSupabaseConfigured())savePost(p).catch(err=>setSaveError(err?.message||"Erro ao salvar"));
+    if(isSupabaseConfigured()){ setLastSaveStatus("enviando"); savePost(p).then(()=>{ setLastSaveStatus("ok"); try{localStorage.removeItem("pilatespost_last_save_error")}catch(e){} setTimeout(()=>setLastSaveStatus(null),2500); }).catch(err=>{ const msg=err?.message||"Erro ao salvar"; setSaveError(msg); setLastSaveStatus("erro"); try{localStorage.setItem("pilatespost_last_save_error",msg)}catch(e){} }); } else setLastSaveStatus(null);
   },[]);
   const del=useCallback(id=>{
     setSaveError(null);
@@ -668,8 +713,8 @@ export default function App(){
   const filtered=useMemo(()=>posts.filter(p=>{if(search&&!p.title.toLowerCase().includes(search.toLowerCase())&&!p.caption.toLowerCase().includes(search.toLowerCase()))return false;if(filter.type&&p.type!==filter.type)return false;return true}),[posts,filter,search]);
   const readyColumnIds=cms.readyColumnIds??["agendado"];const readyCount=useMemo(()=>posts.filter(p=>readyColumnIds.includes(p.column)).length,[posts,readyColumnIds]);
   const navs=[{id:"board",l:"Board",i:"◻"},{id:"calendar",l:"Calendário",i:"◫"},{id:"cms",l:"CMS",i:"📋"}];
-  return<div data-theme={theme}style={{minHeight:"100vh",background:T.bg,fontFamily:T.font,color:T.text}}><style>{CSS}</style>
-    {(syncError||saveError)&&<div style={{padding:"6px 16px",background:(syncError?T.red:T.yellow)+"22",color:syncError?T.red:T.yellow,fontSize:11,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}} role="alert"><span>{syncError||saveError}</span><button type="button"aria-label="Fechar mensagem"onClick={()=>{setSyncError(null);setSaveError(null)}}style={{background:"transparent",border:"none",color:"inherit",cursor:"pointer",fontSize:14}}>✕</button></div>}
+  return<div data-theme={theme}style={{minHeight:"100vh",background:T.bg,fontFamily:T.font,color:T.text}}>
+    {(syncError||saveError)&&<div style={{padding:"6px 16px",background:(syncError?T.red:T.yellow)+"22",color:syncError?T.red:T.yellow,fontSize:11,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}} role="alert"><span>{syncError||saveError}</span><button type="button"aria-label="Fechar mensagem"onClick={()=>{setSyncError(null);setSaveError(null);try{localStorage.removeItem("pilatespost_last_save_error")}catch(e){}}}style={{background:"transparent",border:"none",color:"inherit",cursor:"pointer",fontSize:14}}>✕</button></div>}
     {syncLoading&&<div style={{height:3,background:T.border,overflow:"hidden"}} aria-hidden="true"><div style={{height:"100%",width:"30%",background:T.accent,animation:"pulse 1.5s ease-in-out infinite"}}/></div>}
     <header style={{height:48,padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${T.border}`,background:T.surface,backdropFilter:"blur(12px)",position:"sticky",top:0,zIndex:100,boxShadow:"0 1px 0 0 "+T.border}}>
       <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -686,6 +731,6 @@ export default function App(){
     {showAI&&<AIMentor onClose={()=>setShowAI(false)}/>}
     {showImportIdeas&&<ImportIdeasModal onClose={()=>setShowImportIdeas(false)} setPosts={setPosts} user={user} savePostToBackend={isSupabaseConfigured()?savePost:null}/>}
     <div style={{position:"fixed",bottom:0,left:0,right:0,height:24,background:T.surface,backdropFilter:"blur(10px)",borderTop:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",gap:12,fontSize:9,color:T.textDim,zIndex:90}}>
-      <span>{posts.length} posts</span><span title="Prontos agora">✓ {readyCount} prontos</span><span>💡{posts.filter(p=>p.column==="ideias_rascunhos").length}</span><span>✍️{posts.filter(p=>p.column==="prod").length}</span><span>📅{posts.filter(p=>p.column==="agendado").length}</span><span>🚀{posts.filter(p=>p.column==="publicado").length}</span><span style={{color:T.border}}>|</span><span><span style={{color:user.color,fontWeight:700}}>{user.name}</span> {user.role==="owner"?"👑":"✏️"}</span>
+      <span>{posts.length} posts</span><span title="Prontos agora">✓ {readyCount} prontos</span><span>💡{posts.filter(p=>p.column==="ideias_rascunhos").length}</span><span>✍️{posts.filter(p=>p.column==="prod").length}</span><span>📅{posts.filter(p=>p.column==="agendado").length}</span><span>🚀{posts.filter(p=>p.column==="publicado").length}</span><span style={{color:T.border}}>|</span>{lastSaveStatus==="enviando"&&<span style={{color:T.accent}}>Salvando…</span>}{lastSaveStatus==="ok"&&<span style={{color:"#22c55e"}}>Salvo</span>}{lastSaveStatus==="erro"&&<span style={{color:T.red}}>Erro ao salvar (veja acima)</span>}{!isSupabaseConfigured()&&<span title="Configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY para salvar na nuvem" style={{color:T.yellow}}>Salvamento local</span>}<span style={{color:T.border}}>|</span><span><span style={{color:user.color,fontWeight:700}}>{user.name}</span> {user.role==="owner"?"👑":"✏️"}</span>
     </div>
   </div>}

@@ -54,6 +54,9 @@ export async function fetchPosts() {
 
 export async function savePost(post) {
   if (!supabase) return { data: null, error: null };
+  // #region agent log
+  fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',location:'supabase-queries.js:savePost',message:'savePost() entry',data:{postId:post?.id,column_id:post?.column},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+  // #endregion
   const payload = {
     app_id: post.id,
     column_id: post.column,
@@ -73,7 +76,14 @@ export async function savePost(post) {
     updated_at: new Date().toISOString(),
   };
   let postIdUuid = null;
-  const { data: existing } = await supabase.from("posts").select("id").eq("app_id", post.id).maybeSingle();
+  const { data: existing, error: existingError } = await supabase.from("posts").select("id").eq("app_id", post.id).maybeSingle();
+  // #region agent log
+  if(existingError)fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',location:'supabase-queries.js:savePost:selectExisting',message:'select error',data:{postId:post?.id,errorMessage:existingError?.message,errorCode:existingError?.code},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+  // #endregion
+  const schemaHint = "No Supabase SQL Editor, execute o arquivo supabase/migrations.sql (seção final: posts + app_cms).";
+  if (existingError && (existingError.code === "42703" || existingError.code === "23514")) {
+    throw new Error("Banco desatualizado: " + schemaHint + " (" + (existingError.message || existingError.code) + ")");
+  }
   if (existing) {
     const { data: updated, error } = await supabase
       .from("posts")
@@ -81,7 +91,13 @@ export async function savePost(post) {
       .eq("app_id", post.id)
       .select("id")
       .single();
-    if (error) return { data: null, error };
+    // #region agent log
+    if(error)fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',location:'supabase-queries.js:savePost:update',message:'update error',data:{postId:post?.id,errorMessage:error?.message,errorCode:error?.code},timestamp:Date.now(),hypothesisId:'H3_H4'})}).catch(()=>{});
+    // #endregion
+    if (error) {
+      if (error.code === "42703" || error.code === "23514") throw new Error("Banco desatualizado: " + schemaHint + " (" + (error.message || error.code) + ")");
+      throw new Error(error.message || "Erro ao salvar");
+    }
     postIdUuid = updated?.id;
   } else {
     const { data: inserted, error } = await supabase
@@ -92,7 +108,13 @@ export async function savePost(post) {
       })
       .select("id")
       .single();
-    if (error) return { data: null, error };
+    // #region agent log
+    if(error)fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',location:'supabase-queries.js:savePost:insert',message:'insert error',data:{postId:post?.id,column_id:payload.column_id,errorMessage:error?.message,errorCode:error?.code},timestamp:Date.now(),hypothesisId:'H3_H4'})}).catch(()=>{});
+    // #endregion
+    if (error) {
+      if (error.code === "42703" || error.code === "23514") throw new Error("Banco desatualizado: " + schemaHint + " (" + (error.message || error.code) + ")");
+      throw new Error(error.message || "Erro ao salvar");
+    }
     postIdUuid = inserted?.id;
   }
   if (postIdUuid && post.engagement && typeof post.engagement === "object") {
@@ -117,6 +139,9 @@ export async function savePost(post) {
       await supabase.from("post_metrics").insert(metricRow);
     }
   }
+  // #region agent log
+  fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',location:'supabase-queries.js:savePost',message:'savePost() success',data:{postId:post?.id},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+  // #endregion
   return { data: { ...post }, error: null };
 }
 

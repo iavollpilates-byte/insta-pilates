@@ -2,8 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500&display=swap');
-
 * {
   margin: 0;
   padding: 0;
@@ -12,7 +10,7 @@
 
 html, body, #root {
   height: 100%;
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-dm-sans), -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 ::-webkit-scrollbar {

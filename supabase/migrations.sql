@@ -233,3 +233,26 @@ ALTER PUBLICATION supabase_realtime ADD TABLE stories;
 ALTER PUBLICATION supabase_realtime ADD TABLE crm_cards;
 ALTER PUBLICATION supabase_realtime ADD TABLE crm_stages;
 ALTER PUBLICATION supabase_realtime ADD TABLE activity_log;
+
+-- ============================================================================
+-- POSTS APP FIELDS (required for board save: app_id, column_id flexible, etc.)
+-- If you already ran an older migrations.sql, this section updates posts + adds app_cms
+-- ============================================================================
+ALTER TABLE posts DROP CONSTRAINT IF EXISTS posts_column_id_check;
+ALTER TABLE posts DROP CONSTRAINT IF EXISTS posts_type_check;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS links JSONB DEFAULT '[]';
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS attachments JSONB DEFAULT '[]';
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS app_id TEXT UNIQUE;
+ALTER TABLE posts DROP CONSTRAINT IF EXISTS posts_assignee_fkey;
+ALTER TABLE posts DROP CONSTRAINT IF EXISTS posts_created_by_fkey;
+ALTER TABLE posts ALTER COLUMN assignee TYPE TEXT USING assignee::TEXT;
+ALTER TABLE posts ALTER COLUMN created_by TYPE TEXT USING created_by::TEXT;
+
+CREATE TABLE IF NOT EXISTS app_cms (
+  key TEXT PRIMARY KEY,
+  payload JSONB NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE app_cms ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all for app_cms" ON app_cms FOR ALL USING (true);
+CREATE INDEX IF NOT EXISTS idx_app_cms_updated ON app_cms(updated_at);
