@@ -67,6 +67,8 @@ Acesse: [http://localhost:3000](http://localhost:3000)
 2. Adicione as variáveis de ambiente
 3. Deploy automático a cada push
 
+**Produção:** [https://insta-pilates.vercel.app/](https://insta-pilates.vercel.app/)
+
 ## 📁 Estrutura
 
 ```
