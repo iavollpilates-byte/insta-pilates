@@ -164,6 +164,7 @@ export function defaultCms() {
       specialDatesDaysBefore: 12,
     },
     specialDates: [],
+    pageBackgrounds: { board: "", calendar: "", cms: "" },
   };
 }
 
@@ -181,6 +182,7 @@ export function loadCms() {
       readyColumnIds: Array.isArray(p.readyColumnIds) ? p.readyColumnIds : defaultCms().readyColumnIds,
       alertConfig: { ...defaultCms().alertConfig, ...p.alertConfig },
       specialDates: Array.isArray(p.specialDates) ? p.specialDates : defaultCms().specialDates,
+      pageBackgrounds: p.pageBackgrounds && typeof p.pageBackgrounds === "object" ? { ...defaultCms().pageBackgrounds, ...p.pageBackgrounds } : defaultCms().pageBackgrounds,
     };
   } catch (e) {
     return defaultCms();
