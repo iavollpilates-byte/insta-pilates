@@ -256,3 +256,28 @@ CREATE TABLE IF NOT EXISTS app_cms (
 ALTER TABLE app_cms ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all for app_cms" ON app_cms FOR ALL USING (true);
 CREATE INDEX IF NOT EXISTS idx_app_cms_updated ON app_cms(updated_at);
+
+-- ============================================================================
+-- MULTI-ACCOUNT (Instagram accounts: Rafael, Clara, etc.)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS instagram_accounts (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO instagram_accounts (name, slug) VALUES
+  ('Rafael', 'rafael'),
+  ('Clara', 'clara')
+ON CONFLICT (slug) DO NOTHING;
+
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS account_id UUID REFERENCES instagram_accounts(id) ON DELETE CASCADE;
+
+UPDATE posts
+SET account_id = (SELECT id FROM instagram_accounts WHERE slug = 'rafael' LIMIT 1)
+WHERE account_id IS NULL;
+
+ALTER TABLE posts DROP CONSTRAINT IF EXISTS posts_app_id_key;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_account_app_id ON posts(account_id, app_id);
+CREATE INDEX IF NOT EXISTS idx_posts_account ON posts(account_id);

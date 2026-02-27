@@ -103,6 +103,10 @@ export const CMS_STORAGE_KEY = "insta-pilates-cms";
 export const POSTS_STORAGE_KEY = "insta-pilates-posts";
 export const GEMINI_KEY_STORAGE = "insta-pilates-gemini-key";
 
+function postsKeyForAccount(accountSlug) {
+  return accountSlug ? `${POSTS_STORAGE_KEY}-${accountSlug}` : POSTS_STORAGE_KEY;
+}
+
 export const CARD_FORM_FIELDS = [
   { id: "title", label: "Título" },
   { id: "notes", label: "Rascunho" },
@@ -163,34 +167,24 @@ export function saveCms(cms) {
 
 export const POSTS = [];
 
-export function loadPosts() {
+export function loadPosts(accountSlug) {
+  const key = postsKeyForAccount(accountSlug);
   try {
-    const raw = typeof localStorage !== "undefined" ? localStorage.getItem(POSTS_STORAGE_KEY) : null;
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
     if (!raw) return POSTS;
     const parsed = JSON.parse(raw);
-    // #region agent log
-    fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',runId:'pre-fix',hypothesisId:'H_local_storage',location:'theme-tokens.js:loadPosts',message:'loadPosts ok',data:{hasRaw:true,len:Array.isArray(parsed)?parsed.length:null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-    return parsed;
+    return Array.isArray(parsed) ? parsed : POSTS;
   } catch (e) {
-    // #region agent log
-    fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',runId:'pre-fix',hypothesisId:'H_local_storage',location:'theme-tokens.js:loadPosts',message:'loadPosts error',data:{errorMessage:e?.message||String(e)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     return POSTS;
   }
 }
 
-export function savePosts(posts) {
+export function savePosts(posts, accountSlug) {
+  const key = postsKeyForAccount(accountSlug);
   try {
-    typeof localStorage !== "undefined" && localStorage.setItem(POSTS_STORAGE_KEY, JSON.stringify(posts));
-    // #region agent log
-    fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',runId:'pre-fix',hypothesisId:'H_local_storage',location:'theme-tokens.js:savePosts',message:'savePosts ok',data:{len:Array.isArray(posts)?posts.length:null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
+    typeof localStorage !== "undefined" && localStorage.setItem(key, JSON.stringify(posts));
     return true;
   } catch (e) {
-    // #region agent log
-    fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',runId:'pre-fix',hypothesisId:'H_local_storage',location:'theme-tokens.js:savePosts',message:'savePosts error',data:{errorMessage:e?.message||String(e)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     return false;
   }
 }

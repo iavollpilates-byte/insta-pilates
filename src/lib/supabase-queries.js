@@ -34,9 +34,10 @@ export function rowToPost(row, metrics = null) {
   };
 }
 
-export async function fetchPosts() {
+export async function fetchPosts(accountId) {
   if (!supabase) return null;
-  const { data: rows, error } = await supabase.from("posts").select("*").order("updated_at", { ascending: false });
+  if (accountId == null) return [];
+  const { data: rows, error } = await supabase.from("posts").select("*").eq("account_id", accountId).order("updated_at", { ascending: false });
   if (error) return null;
   const ids = (rows || []).map((r) => r.id);
   let metricsByPost = {};
@@ -52,13 +53,21 @@ export async function fetchPosts() {
   return (rows || []).map((r) => rowToPost(r, metricsByPost[r.id]));
 }
 
-export async function savePost(post) {
+export async function fetchAccounts() {
+  if (!supabase) return [];
+  const { data: rows, error } = await supabase
+    .from("instagram_accounts")
+    .select("id, name, slug")
+    .order("slug", { ascending: true });
+  if (error) return [];
+  return rows || [];
+}
+
+export async function savePost(post, accountId) {
   if (!supabase) return { data: null, error: null };
-  // #region agent log
-  fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',location:'supabase-queries.js:savePost',message:'savePost() entry',data:{postId:post?.id,column_id:post?.column},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-  // #endregion
   const payload = {
     app_id: post.id,
+    account_id: accountId ?? undefined,
     column_id: post.column,
     type: post.type || "reel",
     title: post.title ?? "",
@@ -76,41 +85,30 @@ export async function savePost(post) {
     updated_at: new Date().toISOString(),
   };
   let postIdUuid = null;
-  const { data: existing, error: existingError } = await supabase.from("posts").select("id").eq("app_id", post.id).maybeSingle();
-  // #region agent log
-  if(existingError)fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',location:'supabase-queries.js:savePost:selectExisting',message:'select error',data:{postId:post?.id,errorMessage:existingError?.message,errorCode:existingError?.code},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-  // #endregion
+  let existingQuery = supabase.from("posts").select("id").eq("app_id", post.id);
+  if (accountId != null) existingQuery = existingQuery.eq("account_id", accountId);
+  const { data: existing, error: existingError } = await existingQuery.maybeSingle();
   const schemaHint = "No Supabase SQL Editor, execute o arquivo supabase/migrations.sql (seção final: posts + app_cms).";
   if (existingError && (existingError.code === "42703" || existingError.code === "23514")) {
     throw new Error("Banco desatualizado: " + schemaHint + " (" + (existingError.message || existingError.code) + ")");
   }
   if (existing) {
-    const { data: updated, error } = await supabase
-      .from("posts")
-      .update(payload)
-      .eq("app_id", post.id)
-      .select("id")
-      .single();
-    // #region agent log
-    if(error)fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',location:'supabase-queries.js:savePost:update',message:'update error',data:{postId:post?.id,errorMessage:error?.message,errorCode:error?.code},timestamp:Date.now(),hypothesisId:'H3_H4'})}).catch(()=>{});
-    // #endregion
+    let updateQuery = supabase.from("posts").update(payload).eq("app_id", post.id);
+    if (accountId != null) updateQuery = updateQuery.eq("account_id", accountId);
+    const { data: updated, error } = await updateQuery.select("id").single();
     if (error) {
       if (error.code === "42703" || error.code === "23514") throw new Error("Banco desatualizado: " + schemaHint + " (" + (error.message || error.code) + ")");
       throw new Error(error.message || "Erro ao salvar");
     }
     postIdUuid = updated?.id;
   } else {
+    const insertPayload = { ...payload, created_at: post.createdAt ?? new Date().toISOString() };
+    if (accountId != null) insertPayload.account_id = accountId;
     const { data: inserted, error } = await supabase
       .from("posts")
-      .insert({
-        ...payload,
-        created_at: post.createdAt ?? new Date().toISOString(),
-      })
+      .insert(insertPayload)
       .select("id")
       .single();
-    // #region agent log
-    if(error)fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',location:'supabase-queries.js:savePost:insert',message:'insert error',data:{postId:post?.id,column_id:payload.column_id,errorMessage:error?.message,errorCode:error?.code},timestamp:Date.now(),hypothesisId:'H3_H4'})}).catch(()=>{});
-    // #endregion
     if (error) {
       if (error.code === "42703" || error.code === "23514") throw new Error("Banco desatualizado: " + schemaHint + " (" + (error.message || error.code) + ")");
       throw new Error(error.message || "Erro ao salvar");
@@ -139,15 +137,14 @@ export async function savePost(post) {
       await supabase.from("post_metrics").insert(metricRow);
     }
   }
-  // #region agent log
-  fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',location:'supabase-queries.js:savePost',message:'savePost() success',data:{postId:post?.id},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
-  // #endregion
   return { data: { ...post }, error: null };
 }
 
-export async function deletePost(id) {
+export async function deletePost(id, accountId) {
   if (!supabase) return { error: null };
-  const byAppId = await supabase.from("posts").select("id").eq("app_id", id).maybeSingle();
+  let byQuery = supabase.from("posts").select("id").eq("app_id", id);
+  if (accountId != null) byQuery = byQuery.eq("account_id", accountId);
+  const byAppId = await byQuery.maybeSingle();
   if (byAppId?.data?.id) {
     const { error } = await supabase.from("posts").delete().eq("id", byAppId.data.id);
     return { error };
@@ -211,16 +208,20 @@ export async function saveCms(payload) {
 
 /**
  * Subscribe to posts table for realtime (Trello-like: everyone sees updates).
+ * Only receives events for the given accountId when provided.
  * onStatusChange(connected: boolean) is called when subscription becomes SUBSCRIBED (true) or disconnects (false).
  * Returns unsubscribe function.
  */
-export function subscribeToPosts(setPosts, onStatusChange) {
+export function subscribeToPosts(setPosts, onStatusChange, accountId) {
   if (!supabase) return () => {};
+  const channelName = accountId ? `posts-realtime-${accountId}` : "posts-realtime";
+  const opts = { event: "*", schema: "public", table: "posts" };
+  if (accountId) opts.filter = `account_id=eq.${accountId}`;
   const channel = supabase
-    .channel("posts-realtime")
+    .channel(channelName)
     .on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "posts" },
+      opts,
       (payload) => {
         if (payload.eventType === "INSERT" && payload.new) {
           const newPost = rowToPost(payload.new);

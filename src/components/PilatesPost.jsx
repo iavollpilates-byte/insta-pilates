@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { fetchPosts, savePost, deletePost, isSupabaseConfigured, fetchCms, saveCms as saveCmsCloud, subscribeToPosts } from "@/lib/supabase-queries";
+import { fetchPosts, savePost, deletePost, isSupabaseConfigured, fetchCms, fetchAccounts, saveCms as saveCmsCloud, subscribeToPosts } from "@/lib/supabase-queries";
 import {
   T,
   T_DARK,
@@ -608,21 +608,35 @@ export default function App(){
   const[syncLoading,setSyncLoading]=useState(!!isSupabaseConfigured());
   const[syncError,setSyncError]=useState(null);
   const[saveError,setSaveError]=useState(()=>{try{return typeof localStorage!=="undefined"?localStorage.getItem("pilatespost_last_save_error"):null}catch(e){return null}});
+  const CURRENT_ACCOUNT_STORAGE_KEY="insta-pilates-current-account-id";
+  const DEFAULT_ACCOUNTS_LOCAL=[{id:"local-rafael",name:"Rafael",slug:"rafael"},{id:"local-clara",name:"Clara",slug:"clara"}];
+  const[accounts,setAccounts]=useState([]);
+  const[currentAccount,setCurrentAccount]=useState(null);
 
   useEffect(()=>{
-    if(!isSupabaseConfigured()){ setSyncLoading(false); return; }
+    if(!isSupabaseConfigured()){
+      setAccounts(DEFAULT_ACCOUNTS_LOCAL);
+      try{const saved=typeof localStorage!=="undefined"?localStorage.getItem(CURRENT_ACCOUNT_STORAGE_KEY):null;const cur=saved?DEFAULT_ACCOUNTS_LOCAL.find(a=>a.id===saved||a.slug===saved):null;setCurrentAccount(cur||DEFAULT_ACCOUNTS_LOCAL[0]);}catch(e){setCurrentAccount(DEFAULT_ACCOUNTS_LOCAL[0]);}
+      setSyncLoading(false);
+      return;
+    }
     let cancelled=false;
     setSyncError(null);
-    Promise.all([fetchCms(),fetchPosts()])
-      .then(([cmsData,postsData])=>{
+    Promise.all([fetchAccounts(),fetchCms()])
+      .then(([accountsData,cmsData])=>{
         if(cancelled)return;
+        const list=Array.isArray(accountsData)?accountsData:[];
+        setAccounts(list);
         if(cmsData&&typeof cmsData==="object"&&(cmsData.columns?.length>0||cmsData.postTypes?.length>0||cmsData.pillars?.length>0||cmsData.users?.length>0))setCms(prev=>({...defaultCms(),...prev,...cmsData,columns:cmsData.columns?.length?cmsData.columns:prev.columns,postTypes:cmsData.postTypes?.length?cmsData.postTypes:prev.postTypes,pillars:cmsData.pillars?.length?cmsData.pillars:prev.pillars,users:cmsData.users?.length?cmsData.users:prev.users}));
-        if(isSupabaseConfigured())setPosts(Array.isArray(postsData)?postsData:[]);
+        try{const saved=typeof localStorage!=="undefined"?localStorage.getItem(CURRENT_ACCOUNT_STORAGE_KEY):null;const cur=saved?list.find(a=>a.id===saved):list[0]||null;setCurrentAccount(cur);return cur;}catch(e){return list[0]||null;}
       })
-      .catch(err=>{ if(!cancelled)setSyncError(err?.message||"Falha ao carregar dados"); })
-      .finally(()=>{ if(!cancelled)setSyncLoading(false); });
-    return ()=>{ cancelled=true; };
+      .then((cur)=>{if(cancelled||!cur)return;return fetchPosts(cur.id).then((postsData)=>{if(cancelled)return;if(isSupabaseConfigured())setPosts(Array.isArray(postsData)?postsData:[]);});})
+      .catch(err=>{if(!cancelled)setSyncError(err?.message||"Falha ao carregar dados");})
+      .finally(()=>{if(!cancelled)setSyncLoading(false);});
+    return ()=>{cancelled=true;};
   },[]);
+
+  useEffect(()=>{if(currentAccount?.id)try{typeof localStorage!=="undefined"&&localStorage.setItem(CURRENT_ACCOUNT_STORAGE_KEY,currentAccount.id)}catch(e){}},[currentAccount?.id]);
 
   useEffect(()=>{saveCms(cms);if(isSupabaseConfigured())saveCmsCloud(cms).catch(err=>setSaveError(err?.message||"Erro ao salvar CMS"))},[cms]);
   const[posts,setPosts]=useState([]);
@@ -630,34 +644,23 @@ export default function App(){
   const skipFirstLocalPersistRef=useRef(true);
   const[realtimeConnected,setRealtimeConnected]=useState(false);
   useEffect(()=>{
-    if(!isSupabaseConfigured()){
-      const loaded=loadPosts();
-      setPosts(prev=>{
-        const prevLen=Array.isArray(prev)?prev.length:0;
-        const loadedLen=Array.isArray(loaded)?loaded.length:0;
-        const applied=prevLen===0;
-        // #region agent log
-        fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',runId:'pre-fix',hypothesisId:'H_local_race',location:'PilatesPost.jsx:postsHydrate',message:'hydrate local posts',data:{prevLen,loadedLen,applied},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
-        return applied?loaded:prev;
-      });
+    if(!isSupabaseConfigured()&&currentAccount!=null){
+      const loaded=loadPosts(currentAccount.slug);
+      setPosts(Array.isArray(loaded)?loaded:[]);
       postsHydratedRef.current=true;
     }
-  },[]);
+  },[currentAccount?.slug]);
   useEffect(()=>{
     if(!isSupabaseConfigured()&&postsHydratedRef.current){
       const len=Array.isArray(posts)?posts.length:0;
       if(skipFirstLocalPersistRef.current&&len===0){
         skipFirstLocalPersistRef.current=false;
-        // #region agent log
-        fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',runId:'pre-fix',hypothesisId:'H_local_wipe',location:'PilatesPost.jsx:savePostsEffect',message:'skip initial empty persist',data:{len},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         return;
       }
       skipFirstLocalPersistRef.current=false;
-      savePosts(posts);
+      savePosts(posts,currentAccount?.slug);
     }
-  },[posts]);
+  },[posts,currentAccount?.slug]);
   useEffect(()=>{
     if(typeof document==="undefined")return;
     // #region agent log
@@ -675,9 +678,10 @@ export default function App(){
   },[]);
   useEffect(()=>{
     if(!isSupabaseConfigured()||syncLoading) return;
-    const unsub=subscribeToPosts(setPosts, setRealtimeConnected);
+    const accountId=currentAccount?.id;
+    const unsub=subscribeToPosts(setPosts, setRealtimeConnected, accountId);
     return ()=>{ setRealtimeConnected(false); unsub(); };
-  },[syncLoading]);
+  },[syncLoading,currentAccount?.id]);
   const[view,setView]=useState("board");
   const users=cms.users?.length?cms.users:USERS;const columns=cms.columns?.length?cms.columns:COLUMNS;const postTypes=cms.postTypes?.length?cms.postTypes:POST_TYPES;const pillars=cms.pillars?.length?cms.pillars:PILLARS;
   const[user,setUser]=useState(()=>{const L=loadCms();return L.users?.length?L.users[0]:USERS[0]});
@@ -686,29 +690,25 @@ export default function App(){
   const cardFormFieldIds=cms.cardFormFieldIds??CARD_FORM_FIELDS.map(f=>f.id);const setCardFormFieldIds=useCallback(ids=>setCms(prev=>({...prev,cardFormFieldIds:ids})),[]);
   const[lastSaveStatus,setLastSaveStatus]=useState(null);
   const save=useCallback(p=>{
-    // #region agent log
-    const _d={postId:p?.id,column:p?.column,isSupabase:!!isSupabaseConfigured()};
-    fetch('http://127.0.0.1:7294/ingest/5b75fc16-6a12-4d36-ad74-8d75554109c6',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'448216'},body:JSON.stringify({sessionId:'448216',location:'PilatesPost.jsx:save',message:'save() called',data:_d,timestamp:Date.now(),hypothesisId:'H1_H2'})}).catch(()=>{});
-    // #endregion
     setSaveError(null);
     if(!isSupabaseConfigured()) postsHydratedRef.current=true;
     setPosts(prev=>prev.find(x=>x.id===p.id)?prev.map(x=>x.id===p.id?p:x):[...prev,p]);
-    if(isSupabaseConfigured()){ setLastSaveStatus("enviando"); savePost(p).then(()=>{ setLastSaveStatus("ok"); try{localStorage.removeItem("pilatespost_last_save_error")}catch(e){} setTimeout(()=>setLastSaveStatus(null),2500); }).catch(err=>{ const msg=err?.message||"Erro ao salvar"; setSaveError(msg); setLastSaveStatus("erro"); try{localStorage.setItem("pilatespost_last_save_error",msg)}catch(e){} }); } else setLastSaveStatus(null);
-  },[]);
+    if(isSupabaseConfigured()){ setLastSaveStatus("enviando"); savePost(p,currentAccount?.id).then(()=>{ setLastSaveStatus("ok"); try{localStorage.removeItem("pilatespost_last_save_error")}catch(e){} setTimeout(()=>setLastSaveStatus(null),2500); }).catch(err=>{ const msg=err?.message||"Erro ao salvar"; setSaveError(msg); setLastSaveStatus("erro"); try{localStorage.setItem("pilatespost_last_save_error",msg)}catch(e){} }); } else setLastSaveStatus(null);
+  },[currentAccount?.id]);
   const del=useCallback(id=>{
     setSaveError(null);
     setPosts(prev=>prev.filter(x=>x.id!==id));
-    if(isSupabaseConfigured())deletePost(id).catch(err=>setSaveError(err?.message||"Erro ao excluir"));
-  },[]);
+    if(isSupabaseConfigured())deletePost(id,currentAccount?.id).catch(err=>setSaveError(err?.message||"Erro ao excluir"));
+  },[currentAccount?.id]);
   const drop=useCallback(colId=>{
     if(dp&&dp.column!==colId){
       setSaveError(null);
       const updated={...dp,column:colId};
       setPosts(prev=>prev.map(p=>p.id===dp.id?updated:p));
-      if(isSupabaseConfigured())savePost(updated).catch(err=>setSaveError(err?.message||"Erro ao mover"));
+      if(isSupabaseConfigured())savePost(updated,currentAccount?.id).catch(err=>setSaveError(err?.message||"Erro ao mover"));
     }
     setDp(null);
-  },[dp]);
+  },[dp,currentAccount?.id]);
   const newP=useCallback(colId=>{setEditPost({id:genId(),column:colId,type:"reel",title:"",caption:"",tags:[],assignee:user.id,createdBy:user.id,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),scheduledDate:null,scheduledTime:null,engagement:null,notes:"",links:[],attachments:[],aiScore:null,aiSuggestion:null})},[user.id]);
   const filtered=useMemo(()=>posts.filter(p=>{if(search&&!p.title.toLowerCase().includes(search.toLowerCase())&&!p.caption.toLowerCase().includes(search.toLowerCase()))return false;if(filter.type&&p.type!==filter.type)return false;return true}),[posts,filter,search]);
   const readyColumnIds=cms.readyColumnIds??["agendado"];const readyCount=useMemo(()=>posts.filter(p=>readyColumnIds.includes(p.column)).length,[posts,readyColumnIds]);
@@ -720,6 +720,8 @@ export default function App(){
       <div style={{display:"flex",alignItems:"center",gap:12}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:28,height:28,borderRadius:8,background:`linear-gradient(135deg,${T.accent},${T.yellow})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:T.logoText||"#FFF",fontFamily:T.mono}}>C</div><span style={{fontSize:14,fontWeight:800,background:`linear-gradient(135deg,${T.accent},${T.yellow})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>CORATERIA</span></div>
         <div style={{width:1,height:18,background:T.border,opacity:0.8}}/>
+        {accounts.length>0&&<div style={{display:"flex",gap:2,background:T.card,borderRadius:6,padding:2}}>{accounts.map(acc=><button key={acc.id}type="button"onClick={()=>{setCurrentAccount(acc);if(isSupabaseConfigured())fetchPosts(acc.id).then(data=>setPosts(Array.isArray(data)?data:[]));else setPosts(loadPosts(acc.slug));}}style={{padding:"4px 10px",borderRadius:4,fontSize:11,fontWeight:600,border:currentAccount?.id===acc.id?`1px solid ${T.accent}80`:"1px solid transparent",background:currentAccount?.id===acc.id?T.accentGlow:"transparent",color:currentAccount?.id===acc.id?T.accent:T.textMuted,cursor:"pointer",fontFamily:T.font}}>{acc.name}</button>)}</div>}
+        <div style={{width:1,height:18,background:T.border,opacity:0.8}}/>
         <div style={{display:"flex",gap:2,background:T.card,borderRadius:8,padding:3}} role="tablist">{navs.map(v=><button key={v.id}type="button"role="tab"aria-selected={view===v.id}aria-label={`Ver ${v.l}`}onClick={()=>setView(v.id)}style={{padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:T.font,background:view===v.id?T.accentGlow:"transparent",color:view===v.id?T.accent:T.textMuted,transition:"all 0.15s"}}>{v.i} {v.l}</button>)}</div>
         <button onClick={()=>setShowImportIdeas(true)}style={{padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,border:`1px solid ${T.accentBorder}`,background:"transparent",color:T.accent,cursor:"pointer",fontFamily:T.font}}>Importar ideias</button>
       </div>
@@ -729,7 +731,7 @@ export default function App(){
     <main>{view==="board"&&<div style={{display:"flex",gap:14,padding:"16px 20px",overflowX:"auto",minHeight:"calc(100vh - 96px)",alignItems:"flex-start"}}>{columns.map(c=><KanbanCol key={c.id}col={c}posts={filtered.filter(p=>p.column===c.id)}onEdit={setEditPost}onDragStart={setDp}onDrop={drop}dp={dp}onNew={newP}users={users}postTypes={postTypes}pillars={pillars}/>)}</div>}{view==="calendar"&&<CalView posts={posts}onEdit={setEditPost}onNewCard={()=>newP("agendado")}postTypes={postTypes}specialDates={cms.specialDates}/>}{view==="cms"&&<CMSView cms={cms}setCms={setCms}columns={columns}postTypes={postTypes}pillars={pillars}users={users}cardFormFieldIds={cardFormFieldIds}setCardFormFieldIds={setCardFormFieldIds}setPosts={setPosts}/>}</main>
     {editPost&&<PostEditor post={editPost}onSave={p=>{save(p);setEditPost(null)}}onClose={()=>setEditPost(null)}onDelete={id=>{del(id);setEditPost(null)}}visibleFields={cardFormFieldIds}columns={columns}postTypes={postTypes}pillars={pillars}users={users}/>}
     {showAI&&<AIMentor onClose={()=>setShowAI(false)}/>}
-    {showImportIdeas&&<ImportIdeasModal onClose={()=>setShowImportIdeas(false)} setPosts={setPosts} user={user} savePostToBackend={isSupabaseConfigured()?savePost:null}/>}
+    {showImportIdeas&&<ImportIdeasModal onClose={()=>setShowImportIdeas(false)} setPosts={setPosts} user={user} savePostToBackend={isSupabaseConfigured()?(p=>savePost(p,currentAccount?.id)):null}/>}
     <div style={{position:"fixed",bottom:0,left:0,right:0,height:24,background:T.surface,backdropFilter:"blur(10px)",borderTop:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",gap:12,fontSize:9,color:T.textDim,zIndex:90}}>
       <span>{posts.length} posts</span><span title="Prontos agora">✓ {readyCount} prontos</span><span>💡{posts.filter(p=>p.column==="ideias_rascunhos").length}</span><span>✍️{posts.filter(p=>p.column==="prod").length}</span><span>📅{posts.filter(p=>p.column==="agendado").length}</span><span>🚀{posts.filter(p=>p.column==="publicado").length}</span><span style={{color:T.border}}>|</span>{lastSaveStatus==="enviando"&&<span style={{color:T.accent}}>Salvando…</span>}{lastSaveStatus==="ok"&&<span style={{color:"#22c55e"}}>Salvo</span>}{lastSaveStatus==="erro"&&<span style={{color:T.red}}>Erro ao salvar (veja acima)</span>}{!isSupabaseConfigured()&&<span title="Configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY para salvar na nuvem" style={{color:T.yellow}}>Salvamento local</span>}<span style={{color:T.border}}>|</span><span><span style={{color:user.color,fontWeight:700}}>{user.name}</span> {user.role==="owner"?"👑":"✏️"}</span>
     </div>
