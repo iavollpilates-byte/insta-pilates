@@ -1,36 +1,37 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { fetchPosts, savePost, deletePost, isSupabaseConfigured, fetchCms, saveCms as saveCmsCloud } from "@/lib/supabase-queries";
-import { parseImportIdeasText } from "@/lib/import-ideas-parser";
+import {
+  T,
+  T_DARK,
+  T_LIGHT,
+  setThemeTokens,
+  THEME_STORAGE_KEY,
+  COLUMNS,
+  POST_TYPES,
+  PILLARS,
+  USERS,
+  CMS_STORAGE_KEY,
+  POSTS_STORAGE_KEY,
+  GEMINI_KEY_STORAGE,
+  defaultCms,
+  loadCms,
+  saveCms,
+  loadPosts,
+  savePosts,
+  genId,
+  fmtDate,
+  fmtNum,
+  CARD_FORM_FIELDS,
+  DAY_NAMES,
+  DAY_NAMES_CAL,
+  getWeekDates,
+  CSS,
+} from "@/lib/theme-tokens";
+import ImportIdeasModal from "./ImportIdeasModal";
 
 // ============================================================================
-// PILATESPOST v4 — ALL PHASES: Board + Calendar + AI + Metrics + Trends + CRM + STORIES
+// PILATESPOST v4 — Board + Calendar + AI + Metrics + Trends + CRM + STORIES
 // ============================================================================
-
-const THEME_STORAGE_KEY="insta-pilates-theme";
-const T_DARK={bg:"#0B0B1A",surface:"#12122A",card:"rgba(255,255,255,0.03)",cardHover:"rgba(255,255,255,0.06)",border:"rgba(255,255,255,0.06)",borderHover:"rgba(255,255,255,0.12)",text:"#E8E8F0",textMuted:"rgba(255,255,255,0.45)",textDim:"rgba(255,255,255,0.25)",accent:"#FF6B35",accentGlow:"rgba(255,107,53,0.15)",accentBorder:"rgba(255,107,53,0.35)",accentText:"#FFFFFF",logoText:"#FFFFFF",yellow:"#F7C948",green:"#5DE8A0",greenBg:"rgba(93,232,160,0.1)",greenBorder:"rgba(93,232,160,0.25)",cyan:"#4ECDC4",red:"#FF5757",purple:"#A78BFA",purpleBg:"rgba(167,139,250,0.06)",purpleBorder:"rgba(167,139,250,0.25)",pink:"#FF8FAB",font:"'DM Sans',-apple-system,sans-serif",mono:"'JetBrains Mono','Fira Code',monospace"};
-const T_LIGHT={bg:"#FAFAFC",surface:"#FFFFFF",card:"rgba(0,0,0,0.03)",cardHover:"rgba(0,0,0,0.06)",border:"rgba(0,0,0,0.08)",borderHover:"rgba(0,0,0,0.14)",text:"#1A1A24",textMuted:"#666",textDim:"#999",accent:"#FF6B35",accentGlow:"rgba(255,107,53,0.12)",accentBorder:"rgba(255,107,53,0.4)",accentText:"#FFFFFF",logoText:"#FFFFFF",yellow:"#E6A800",green:"#0D9488",greenBg:"rgba(13,148,136,0.08)",greenBorder:"rgba(13,148,136,0.25)",cyan:"#0891B2",red:"#DC2626",purple:"#7C3AED",purpleBg:"rgba(124,58,237,0.08)",purpleBorder:"rgba(124,58,237,0.25)",pink:"#DB2777",font:"'DM Sans',-apple-system,sans-serif",mono:"'JetBrains Mono','Fira Code',monospace"};
-let T={...T_DARK};
-
-const COLUMNS=[
-  {id:"ideias_rascunhos",label:"Ideias e Rascunhos",icon:"💡",color:"#FF6B35",desc:"Brainstorms"},
-  {id:"prod",label:"Prod. e Desenvolvimento",icon:"✍️",color:"#F7C948",desc:"Em desenvolvimento"},
-  {id:"edicao_revisao",label:"Edição e Revisão",icon:"👀",color:"#4ECDC4",desc:"Aprovação"},
-  {id:"prontos",label:"Prontos",icon:"✅",color:"#45B7D1",desc:"Pronto"},
-  {id:"agendado",label:"Agendado",icon:"📅",color:"#45B7D1",desc:"Agendado"},
-  {id:"publicado",label:"Publicado",icon:"🚀",color:"#5DE8A0",desc:"No ar!"}
-];
-const POST_TYPES=[{id:"reel",label:"Reel",icon:"🎬",color:"#FF6B35"},{id:"carrossel",label:"Carrossel",icon:"📑",color:"#F7C948"},{id:"static",label:"Post",icon:"📄",color:"#4ECDC4"},{id:"roteiro",label:"Roteiro",icon:"📝",color:"#A78BFA"},{id:"collab",label:"Collab",icon:"🤝",color:"#45B7D1"},{id:"tirinha",label:"Tirinha",icon:"📰",color:"#FF8FAB"}];
-const PILLARS=[{id:"provocativo",label:"Provocativo",color:"#FF6B35"},{id:"educativo",label:"Educativo",color:"#4ECDC4"},{id:"mba",label:"MBA",color:"#F7C948"},{id:"gestante",label:"Gestante",color:"#FF8FAB"},{id:"storytelling",label:"Storytelling",color:"#A78BFA"},{id:"bastidores",label:"Bastidores",color:"#5DE8A0"}];
-const USERS=[{id:"rafael",name:"Rafael",role:"owner",avatar:"R",color:"#FF6B35",email:""},{id:"editor",name:"Editor",role:"editor",avatar:"E",color:"#4ECDC4",email:""}];
-
-const CMS_STORAGE_KEY="insta-pilates-cms";
-const POSTS_STORAGE_KEY="insta-pilates-posts";
-const GEMINI_KEY_STORAGE="insta-pilates-gemini-key";
-const defaultCms=()=>({columns:[...COLUMNS],postTypes:[...POST_TYPES],pillars:[...PILLARS],users:USERS.map(u=>({...u,email:u.email||""})),cardFormFieldIds:CARD_FORM_FIELDS.map(f=>f.id),readyColumnIds:["agendado"],alertConfig:{scheduledEnabled:true,scheduledDaysAfter:1,draftEnabled:true,draftDaysStale:7,specialDatesDaysBefore:12},specialDates:[]});
-function loadCms(){try{const raw=typeof localStorage!=="undefined"?localStorage.getItem(CMS_STORAGE_KEY):null;if(!raw)return defaultCms();const p=JSON.parse(raw);return{columns:p.columns?.length?p.columns:defaultCms().columns,postTypes:p.postTypes?.length?p.postTypes:defaultCms().postTypes,pillars:p.pillars?.length?p.pillars:defaultCms().pillars,users:p.users?.length?p.users:defaultCms().users,cardFormFieldIds:Array.isArray(p.cardFormFieldIds)?p.cardFormFieldIds:defaultCms().cardFormFieldIds,readyColumnIds:Array.isArray(p.readyColumnIds)?p.readyColumnIds:defaultCms().readyColumnIds,alertConfig:{...defaultCms().alertConfig,...p.alertConfig},specialDates:Array.isArray(p.specialDates)?p.specialDates:defaultCms().specialDates};}catch(e){return defaultCms();}}
-function saveCms(cms){try{typeof localStorage!=="undefined"&&localStorage.setItem(CMS_STORAGE_KEY,JSON.stringify(cms));}catch(e){}}
-function loadPosts(){try{const raw=typeof localStorage!=="undefined"?localStorage.getItem(POSTS_STORAGE_KEY):null;if(!raw)return POSTS;return JSON.parse(raw);}catch(e){return POSTS;}}
-function savePosts(posts){try{typeof localStorage!=="undefined"&&localStorage.setItem(POSTS_STORAGE_KEY,JSON.stringify(posts));}catch(e){}}
 
 // --- STORY TYPES & TEMPLATES ---
 const STORY_TYPES=[
@@ -118,9 +119,6 @@ const INITIAL_STORIES=[
   },
 ];
 
-// --- POSTS DATA (inicial vazio; usuário adiciona por + Novo) ---
-const POSTS=[];
-
 const AI_ALERTS=[{id:1,icon:"🔥",text:"\"Pilates Wall\" trending — ninguém cobriu!",urgency:"alta",act:"Criar"},{id:2,icon:"⚠️",text:"Pilar Gestante sem post há 14 dias.",urgency:"alta",act:"Ver ideias"},{id:3,icon:"👁",text:"Concorrente postou sobre precificação.",urgency:"média",act:"Ver"}];
 
 const HOOK_BANK=[{id:1,text:"Eu sei que dói ouvir isso. Mas...",cat:"provocativo",score:95,uses:3},{id:2,text:"A verdade que ninguém te conta...",cat:"provocativo",score:89,uses:5},{id:3,text:"O erro mais caro que já cometi",cat:"storytelling",score:93,uses:1},{id:4,text:"Se eu pudesse voltar no tempo...",cat:"storytelling",score:91,uses:1},{id:5,text:"Por que [crença] está ERRADA",cat:"provocativo",score:88,uses:4},{id:6,text:"Eu demiti meu melhor instrutor",cat:"storytelling",score:94,uses:0}];
@@ -132,23 +130,13 @@ const METRICS={kpis:{followers:{val:"48.2k",change:"+1.2k",pct:"+2.5%"},engageme
 const DEFAULT_CRM=[{id:"lead",label:"Lead",icon:"🎯",color:"#FF6B35"},{id:"contact",label:"Contato",icon:"📩",color:"#F7C948"},{id:"negotiation",label:"Negociação",icon:"🤝",color:"#4ECDC4"},{id:"proposal",label:"Proposta",icon:"📋",color:"#45B7D1"},{id:"closed",label:"Fechado",icon:"🏆",color:"#5DE8A0"}];
 const CRM_CARDS=[{id:"c1",stage:"lead",title:"Parceria @fisio.moderna",desc:"25k seguidores. Collab.",value:"Collab",priority:"alta",contact:"DM",tags:["collab"]},{id:"c2",stage:"contact",title:"Pilates Summit 2026",desc:"Palestra em SP.",value:"Autoridade",priority:"alta",contact:"Ana Lima",tags:["evento"]},{id:"c3",stage:"negotiation",title:"Curso online plataforma X",desc:"Hospedar curso gestão.",value:"R$15k+",priority:"alta",contact:"Reunião 28/02",tags:["curso"]},{id:"c4",stage:"closed",title:"Publi Reformer",desc:"Post patrocinado.",value:"R$2.500",priority:"média",contact:"Contrato assinado",tags:["publi"]}];
 
-// UTILS
-const genId=()=>"x"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
-const fmtDate=(d)=>d?new Date(d).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}):"";
-const fmtNum=(n)=>n>=1000?(n/1000).toFixed(1)+"k":String(n);
 const today=new Date("2026-02-24");
-const DAY_NAMES=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
-const DAY_NAMES_CAL=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
-const CARD_FORM_FIELDS=[{id:"title",label:"Título"},{id:"notes",label:"Rascunho"},{id:"type",label:"Tipo de conteúdo"},{id:"tags",label:"Hashtags"},{id:"caption",label:"Legenda"},{id:"links",label:"Links"},{id:"attachments",label:"Anexos"},{id:"scheduledDate",label:"Data/Hora"},{id:"metrics",label:"Métricas Instagram"},{id:"column",label:"Status/Coluna"}];
-function getWeekDates(b){const d=new Date(b),day=d.getDay(),diff=d.getDate()-day+(day===0?-6:1),mon=new Date(d.setDate(diff));return Array.from({length:7},(_,i)=>{const dd=new Date(mon);dd.setDate(mon.getDate()+i);return dd})}
 const WEEK_TPL=[{day:0,time:"07:00",type:"reel",label:"Reel Provocativo"},{day:1,time:"07:00",type:"carrossel",label:"Carrossel Educativo"},{day:2,time:"12:00",type:"reel",label:"Reel Bastidores"},{day:3,time:"07:00",type:"carrossel",label:"Carrossel MBA"},{day:4,time:"18:00",type:"reel",label:"Reel Storytelling"},{day:5,time:"10:00",type:"static",label:"Post Reflexão"}];
-
-const CSS=`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500&display=swap');*{margin:0;padding:0;box-sizing:border-box}html,body,#root{height:100%}::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.07);border-radius:3px}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}@keyframes scaleIn{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}@keyframes typing{0%{opacity:0.3}50%{opacity:1}100%{opacity:0.3}}@keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(255,107,53,0)}50%{box-shadow:0 0 15px 3px rgba(255,107,53,0.15)}}@keyframes slideRight{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}`;
 
 // MICRO COMPONENTS
 function Badge({children,color=T.accent,style={}}){return<span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:6,fontSize:11,fontWeight:600,color,background:`${color}18`,border:`1px solid ${color}25`,whiteSpace:"nowrap",lineHeight:"18px",...style}}>{children}</span>}
 function Avatar({user,users,size=22}){const list=users&&users.length?users:USERS;const u=list.find(x=>x.id===user);if(!u)return null;return<div title={u.name}style={{width:size,height:size,borderRadius:"50%",background:`linear-gradient(135deg,${u.color},${u.color}99)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.42,fontWeight:700,color:"#fff",flexShrink:0,border:`2px solid ${T.bg}`}}>{u.avatar}</div>}
-function IconBtn({children,onClick,title,active,small,style={}}){const[h,setH]=useState(false);const sz=small?26:32;return<button title={title}onClick={onClick}onMouseEnter={()=>setH(true)}onMouseLeave={()=>setH(false)}style={{width:sz,height:sz,borderRadius:7,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:small?12:14,transition:"all 0.15s",background:active?T.accentGlow:h?"rgba(255,255,255,0.06)":"transparent",color:active?T.accent:h?T.text:T.textMuted,...style}}>{children}</button>}
+function IconBtn({children,onClick,title,active,small,style={}}){const[h,setH]=useState(false);const sz=small?26:32;return<button type="button"aria-label={title||undefined}title={title}onClick={onClick}onMouseEnter={()=>setH(true)}onMouseLeave={()=>setH(false)}style={{width:sz,height:sz,borderRadius:7,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:small?12:14,transition:"all 0.15s",background:active?T.accentGlow:h?"rgba(255,255,255,0.06)":"transparent",color:active?T.accent:h?T.text:T.textMuted,...style}}>{children}</button>}
 function AIS({score,size="sm"}){if(!score)return null;const c=score>=90?T.green:score>=75?T.yellow:T.accent;const s=size==="lg"?38:26;return<div title={`Score: ${score}`}style={{width:s,height:s,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:`${c}15`,border:`2px solid ${c}40`,color:c,fontSize:s>30?13:10,fontWeight:800,fontFamily:T.mono,flexShrink:0}}>{score}</div>}
 
 // ============================================================================
@@ -229,9 +217,8 @@ function StoryEditor({story,onSave,onClose,onDelete}){
   const bgColors={"gradient-fire":"#FF6B35","gradient-dark":"#2d2d4e","gradient-green":"#0d9488","gradient-purple":"#7c3aed","gradient-cyan":"#0891b2"};
   const cs=f.slides[activeSlide];
 
-  return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(6px)"}}onClick={e=>{if(e.target===e.currentTarget)onClose()}}>
-      <div style={{width:"min(860px,97vw)",maxHeight:"92vh",background:T.surface,borderRadius:18,display:"flex",flexDirection:"column",border:`1px solid ${T.border}`,boxShadow:"0 30px 90px rgba(0,0,0,0.5)",animation:"scaleIn 0.2s",overflow:"hidden"}}>
+  return<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(6px)"}}onClick={e=>{if(e.target===e.currentTarget)onClose()}}role="presentation">
+      <div role="dialog"aria-modal="true"aria-label="Editar sequência de stories"style={{width:"min(860px,97vw)",maxHeight:"92vh",background:T.surface,borderRadius:18,display:"flex",flexDirection:"column",border:`1px solid ${T.border}`,boxShadow:"0 30px 90px rgba(0,0,0,0.5)",animation:"scaleIn 0.2s",overflow:"hidden"}}onKeyDown={e=>e.key==="Escape"&&onClose()}>
         {/* Header */}
         <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -357,7 +344,6 @@ function StoryEditor({story,onSave,onClose,onDelete}){
         </div>
       </div>
     </div>
-  );
 }
 
 function StoriesView(){
@@ -457,7 +443,7 @@ function PostEditor({post,onSave,onClose,onDelete,visibleFields=[],columns,postT
   const setAttachment=(i,url)=>setF(p=>({...p,attachments:p.attachments.map((a,j)=>j===i?url:a)}));
   const removeAttachment=(i)=>setF(p=>({...p,attachments:p.attachments.filter((_,j)=>j!==i)}));
   const setEng=(key,val)=>setF(p=>({...p,engagement:{...p.engagement,[key]:isNaN(Number(val))?0:Number(val)}}));
-  return<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(6px)"}}onClick={e=>{if(e.target===e.currentTarget)onClose()}}><div style={{width:"min(700px,95vw)",maxHeight:"90vh",display:"flex",flexDirection:"column",background:T.surface,borderRadius:16,border:`1px solid ${T.border}`,boxShadow:"0 24px 60px rgba(0,0,0,0.2)",animation:"scaleIn 0.2s",overflow:"hidden"}}>
+  return<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(6px)"}}onClick={e=>{if(e.target===e.currentTarget)onClose()}}role="presentation"><div role="dialog"aria-modal="true"aria-label="Editar post"style={{width:"min(700px,95vw)",maxHeight:"90vh",display:"flex",flexDirection:"column",background:T.surface,borderRadius:16,border:`1px solid ${T.border}`,boxShadow:"0 24px 60px rgba(0,0,0,0.2)",animation:"scaleIn 0.2s",overflow:"hidden"}}onKeyDown={e=>e.key==="Escape"&&onClose()}>
     <div style={{flexShrink:0,padding:"12px 18px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}><Badge color={cols.find(c=>c.id===f.column)?.color}>{cols.find(c=>c.id===f.column)?.icon} {cols.find(c=>c.id===f.column)?.label}</Badge><div style={{display:"flex",gap:4}}><AIS score={f.aiScore}size="lg"/><IconBtn onClick={()=>{if(confirm("Excluir?")){onDelete(f.id);onClose()}}}>🗑️</IconBtn><IconBtn onClick={onClose}>✕</IconBtn></div></div>
     <div style={{flex:1,minHeight:0,maxHeight:"calc(90vh - 120px)",overflowY:"auto",WebkitOverflowScrolling:"touch",padding:18}}>
       {vis.has("title")&&<div style={{marginBottom:14}}><input value={f.title}onChange={e=>up("title",e.target.value)}placeholder="Título (ex.: CARROSSEL: 'Seu studio...')"style={{width:"100%",background:"transparent",border:"none",color:T.text,fontSize:16,fontWeight:700,fontFamily:T.font,outline:"none",borderBottom:`1px solid ${T.border}`,paddingBottom:8}}/></div>}
@@ -528,7 +514,7 @@ function AIMentor({onClose}){const[msgs,setMsgs]=useState([{role:"ai",text:`Oi R
   useEffect(()=>{if(ref.current)ref.current.scrollTop=ref.current.scrollHeight},[msgs,typ]);
   const send=(text,key)=>{const m=text||inp;if(!m.trim()&&!key)return;setMsgs(p=>[...p,{role:"user",text:m}]);setInp("");setTyp(true);setTimeout(()=>{setTyp(false);setMsgs(p=>[...p,{role:"ai",text:AI_R[key]||AI_R.ideias}])},700+Math.random()*500)};
   const fmt=(t)=>t.split('\n').map((l,i)=><div key={i}dangerouslySetInnerHTML={{__html:l.replace(/\*\*(.+?)\*\*/g,'<strong style="color:#fff">$1</strong>')||'&nbsp;'}}style={{marginBottom:l?2:6}}/>);
-  return<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(5px)"}}onClick={e=>{if(e.target===e.currentTarget)onClose()}}><div style={{width:"min(660px,96vw)",height:"84vh",background:T.bg,borderRadius:16,display:"flex",flexDirection:"column",border:`1px solid ${T.accentBorder}`,boxShadow:"0 30px 90px rgba(0,0,0,0.6)",animation:"scaleIn 0.2s",overflow:"hidden"}}>
+  return<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(5px)"}}onClick={e=>{if(e.target===e.currentTarget)onClose()}}role="presentation"><div role="dialog"aria-modal="true"aria-label="IA Mentor"style={{width:"min(660px,96vw)",height:"84vh",background:T.bg,borderRadius:16,display:"flex",flexDirection:"column",border:`1px solid ${T.accentBorder}`,boxShadow:"0 30px 90px rgba(0,0,0,0.6)",animation:"scaleIn 0.2s",overflow:"hidden"}}onKeyDown={e=>e.key==="Escape"&&onClose()}>
     <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",background:"rgba(255,107,53,0.03)"}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:34,height:34,borderRadius:9,background:`linear-gradient(135deg,${T.accent},${T.yellow})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17}}>🧠</div><div><div style={{color:T.text,fontWeight:800,fontSize:13}}>IA Mentor</div><div style={{color:T.green,fontSize:10}}>● Online</div></div></div><IconBtn onClick={onClose}>✕</IconBtn></div>
     <div ref={ref}style={{flex:1,overflowY:"auto",padding:"12px 16px",display:"flex",flexDirection:"column",gap:8}}>{msgs.map((m,i)=><div key={i}style={{alignSelf:m.role==="user"?"flex-end":"flex-start",maxWidth:"88%",animation:"fadeIn 0.25s"}}>{m.role==="ai"&&<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:3}}><span style={{fontSize:10}}>🧠</span><span style={{fontSize:10,fontWeight:700,color:T.accent}}>IA</span></div>}<div style={{background:m.role==="user"?`linear-gradient(135deg,${T.accent},#e85d2c)`:"rgba(255,255,255,0.04)",padding:"10px 14px",color:T.text,fontSize:12,lineHeight:1.6,borderRadius:m.role==="user"?"13px 13px 3px 13px":"13px 13px 13px 3px",border:m.role==="ai"?`1px solid ${T.border}`:"none"}}>{m.role==="ai"?fmt(m.text):m.text}</div></div>)}{typ&&<div style={{alignSelf:"flex-start"}}><div style={{background:"rgba(255,255,255,0.04)",padding:"10px 14px",borderRadius:"13px 13px 13px 3px",border:`1px solid ${T.border}`,display:"flex",gap:4}}>{[0,1,2].map(i=><span key={i}style={{width:6,height:6,borderRadius:"50%",background:T.accent,animation:`typing 1.2s infinite ${i*0.2}s`}}/>)}</div></div>}</div>
     <div style={{padding:"7px 16px 10px",borderTop:`1px solid ${T.border}`}}><div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:7}}>{acts.map((a,i)=><button key={i}onClick={()=>send(a.l,a.k)}style={{background:"rgba(255,107,53,0.08)",border:`1px solid ${T.accentBorder}`,color:T.accent,padding:"3px 9px",borderRadius:6,fontSize:10.5,cursor:"pointer",fontFamily:T.font,fontWeight:600}}>{a.l}</button>)}</div><div style={{display:"flex",gap:6}}><input value={inp}onChange={e=>setInp(e.target.value)}onKeyDown={e=>e.key==="Enter"&&send()}placeholder="Pergunte..."style={{flex:1,background:"rgba(255,255,255,0.04)",border:`1px solid ${T.border}`,borderRadius:9,padding:"9px 12px",color:T.text,fontSize:12.5,fontFamily:T.font,outline:"none"}}onFocus={e=>e.target.style.borderColor=T.accentBorder}onBlur={e=>e.target.style.borderColor=T.border}/><button onClick={()=>send()}style={{background:`linear-gradient(135deg,${T.accent},${T.yellow})`,border:"none",borderRadius:9,padding:"0 18px",color:T.accentText,fontWeight:800,cursor:"pointer",fontSize:14}}>→</button></div></div>
@@ -555,7 +541,7 @@ function CRMView(){const[stages,setStages]=useState(DEFAULT_CRM);const[cards,set
           <button onClick={()=>setEc({id:genId(),stage:stage.id,title:"",desc:"",value:"",priority:"média",contact:"",tags:[]})}style={{margin:"2px 4px 7px",padding:7,background:"transparent",border:`1px dashed ${T.border}`,borderRadius:7,color:T.textDim,fontSize:10.5,cursor:"pointer",fontFamily:T.font}}onMouseEnter={e=>{e.target.style.borderColor=stage.color;e.target.style.color=stage.color}}onMouseLeave={e=>{e.target.style.borderColor=T.border;e.target.style.color=T.textDim}}>+ Novo</button>
         </div>})}
     </div>
-    {ec&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(6px)"}}onClick={e=>{if(e.target===e.currentTarget)setEc(null)}}><div style={{width:"min(520px,94vw)",maxHeight:"80vh",background:T.surface,borderRadius:14,display:"flex",flexDirection:"column",border:`1px solid ${T.border}`,animation:"scaleIn 0.2s",overflow:"hidden"}}><div style={{padding:"12px 18px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between"}}><Badge color={stages.find(s=>s.id===ec.stage)?.color}>{stages.find(s=>s.id===ec.stage)?.icon}{stages.find(s=>s.id===ec.stage)?.label}</Badge><div style={{display:"flex",gap:3}}><IconBtn onClick={()=>{setCards(p=>p.filter(c=>c.id!==ec.id));setEc(null)}}>🗑️</IconBtn><IconBtn onClick={()=>setEc(null)}>✕</IconBtn></div></div><div style={{flex:1,overflowY:"auto",padding:16}}><input value={ec.title}onChange={e=>setEc(p=>({...p,title:e.target.value}))}placeholder="Título..."style={{width:"100%",background:"transparent",border:"none",color:T.text,fontSize:16,fontWeight:700,fontFamily:T.font,outline:"none",marginBottom:12,borderBottom:`1px solid ${T.border}`,paddingBottom:8}}/><div style={{display:"flex",gap:8,marginBottom:12}}><div style={{flex:1}}><label style={{fontSize:9,color:T.textMuted,fontWeight:700,display:"block",marginBottom:4,textTransform:"uppercase"}}>Valor</label><input value={ec.value}onChange={e=>setEc(p=>({...p,value:e.target.value}))}placeholder="R$5.000"style={{width:"100%",background:"rgba(255,255,255,0.03)",border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 10px",color:T.text,fontSize:12,fontFamily:T.font,outline:"none"}}/></div><div><label style={{fontSize:9,color:T.textMuted,fontWeight:700,display:"block",marginBottom:4,textTransform:"uppercase"}}>Prioridade</label><div style={{display:"flex",gap:3}}>{"alta,média".split(",").map(p=><button key={p}onClick={()=>setEc(prev=>({...prev,priority:p}))}style={{padding:"4px 10px",borderRadius:6,fontSize:10.5,fontWeight:600,border:ec.priority===p?`1px solid ${p==="alta"?T.accent:T.yellow}60`:`1px solid ${T.border}`,background:ec.priority===p?`${p==="alta"?T.accent:T.yellow}15`:"transparent",color:ec.priority===p?p==="alta"?T.accent:T.yellow:T.textMuted,cursor:"pointer",fontFamily:T.font}}>{p==="alta"?"🔴":"🟡"}{p}</button>)}</div></div></div><textarea value={ec.desc}onChange={e=>setEc(p=>({...p,desc:e.target.value}))}placeholder="Descrição..."rows={2}style={{width:"100%",background:"rgba(255,255,255,0.03)",border:`1px solid ${T.border}`,borderRadius:7,padding:"8px 10px",color:T.text,fontSize:12,fontFamily:T.font,lineHeight:1.5,outline:"none",resize:"vertical",marginBottom:10}}/><input value={ec.contact}onChange={e=>setEc(p=>({...p,contact:e.target.value}))}placeholder="Contato..."style={{width:"100%",background:"rgba(255,255,255,0.03)",border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 10px",color:T.text,fontSize:12,fontFamily:T.font,outline:"none",marginBottom:10}}/><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{stages.map(s=><button key={s.id}onClick={()=>setEc(p=>({...p,stage:s.id}))}style={{padding:"3px 9px",borderRadius:6,fontSize:10.5,fontWeight:600,border:ec.stage===s.id?`1px solid ${s.color}60`:`1px solid ${T.border}`,background:ec.stage===s.id?`${s.color}15`:"transparent",color:ec.stage===s.id?s.color:T.textMuted,cursor:"pointer",fontFamily:T.font}}>{s.icon}{s.label}</button>)}</div></div><div style={{padding:"10px 16px",borderTop:`1px solid ${T.border}`,display:"flex",justifyContent:"flex-end",gap:6}}><button onClick={()=>setEc(null)}style={{padding:"6px 12px",borderRadius:7,fontSize:11,border:`1px solid ${T.border}`,background:"transparent",color:T.textMuted,cursor:"pointer",fontFamily:T.font}}>Cancelar</button><button onClick={()=>saveCard(ec)}style={{padding:"6px 16px",borderRadius:7,fontSize:11,fontWeight:700,border:"none",background:`linear-gradient(135deg,${T.accent},${T.yellow})`,color:T.accentText,cursor:"pointer",fontFamily:T.font}}>Salvar</button></div></div></div>}
+    {ec&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(6px)"}}onClick={e=>{if(e.target===e.currentTarget)setEc(null)}}role="presentation"><div role="dialog"aria-modal="true"aria-label="Editar card do CRM"style={{width:"min(520px,94vw)",maxHeight:"80vh",background:T.surface,borderRadius:14,display:"flex",flexDirection:"column",border:`1px solid ${T.border}`,animation:"scaleIn 0.2s",overflow:"hidden"}}onKeyDown={e=>e.key==="Escape"&&setEc(null)}><div style={{padding:"12px 18px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between"}}><Badge color={stages.find(s=>s.id===ec.stage)?.color}>{stages.find(s=>s.id===ec.stage)?.icon}{stages.find(s=>s.id===ec.stage)?.label}</Badge><div style={{display:"flex",gap:3}}><IconBtn onClick={()=>{setCards(p=>p.filter(c=>c.id!==ec.id));setEc(null)}} title="Excluir">🗑️</IconBtn><IconBtn onClick={()=>setEc(null)} title="Fechar">✕</IconBtn></div></div><div style={{flex:1,overflowY:"auto",padding:16}}><input value={ec.title}onChange={e=>setEc(p=>({...p,title:e.target.value}))}placeholder="Título..."style={{width:"100%",background:"transparent",border:"none",color:T.text,fontSize:16,fontWeight:700,fontFamily:T.font,outline:"none",marginBottom:12,borderBottom:`1px solid ${T.border}`,paddingBottom:8}}/><div style={{display:"flex",gap:8,marginBottom:12}}><div style={{flex:1}}><label style={{fontSize:9,color:T.textMuted,fontWeight:700,display:"block",marginBottom:4,textTransform:"uppercase"}}>Valor</label><input value={ec.value}onChange={e=>setEc(p=>({...p,value:e.target.value}))}placeholder="R$5.000"style={{width:"100%",background:"rgba(255,255,255,0.03)",border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 10px",color:T.text,fontSize:12,fontFamily:T.font,outline:"none"}}/></div><div><label style={{fontSize:9,color:T.textMuted,fontWeight:700,display:"block",marginBottom:4,textTransform:"uppercase"}}>Prioridade</label><div style={{display:"flex",gap:3}}>{"alta,média".split(",").map(p=><button key={p}onClick={()=>setEc(prev=>({...prev,priority:p}))}style={{padding:"4px 10px",borderRadius:6,fontSize:10.5,fontWeight:600,border:ec.priority===p?`1px solid ${p==="alta"?T.accent:T.yellow}60`:`1px solid ${T.border}`,background:ec.priority===p?`${p==="alta"?T.accent:T.yellow}15`:"transparent",color:ec.priority===p?p==="alta"?T.accent:T.yellow:T.textMuted,cursor:"pointer",fontFamily:T.font}}>{p==="alta"?"🔴":"🟡"}{p}</button>)}</div></div></div><textarea value={ec.desc}onChange={e=>setEc(p=>({...p,desc:e.target.value}))}placeholder="Descrição..."rows={2}style={{width:"100%",background:"rgba(255,255,255,0.03)",border:`1px solid ${T.border}`,borderRadius:7,padding:"8px 10px",color:T.text,fontSize:12,fontFamily:T.font,lineHeight:1.5,outline:"none",resize:"vertical",marginBottom:10}}/><input value={ec.contact}onChange={e=>setEc(p=>({...p,contact:e.target.value}))}placeholder="Contato..."style={{width:"100%",background:"rgba(255,255,255,0.03)",border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 10px",color:T.text,fontSize:12,fontFamily:T.font,outline:"none",marginBottom:10}}/><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{stages.map(s=><button key={s.id}onClick={()=>setEc(p=>({...p,stage:s.id}))}style={{padding:"3px 9px",borderRadius:6,fontSize:10.5,fontWeight:600,border:ec.stage===s.id?`1px solid ${s.color}60`:`1px solid ${T.border}`,background:ec.stage===s.id?`${s.color}15`:"transparent",color:ec.stage===s.id?s.color:T.textMuted,cursor:"pointer",fontFamily:T.font}}>{s.icon}{s.label}</button>)}</div></div><div style={{padding:"10px 16px",borderTop:`1px solid ${T.border}`,display:"flex",justifyContent:"flex-end",gap:6}}><button onClick={()=>setEc(null)}style={{padding:"6px 12px",borderRadius:7,fontSize:11,border:`1px solid ${T.border}`,background:"transparent",color:T.textMuted,cursor:"pointer",fontFamily:T.font}}>Cancelar</button><button onClick={()=>saveCard(ec)}style={{padding:"6px 16px",borderRadius:7,fontSize:11,fontWeight:700,border:"none",background:`linear-gradient(135deg,${T.accent},${T.yellow})`,color:T.accentText,cursor:"pointer",fontFamily:T.font}}>Salvar</button></div></div></div>}
   </div>}
 
 // Hooks
@@ -615,121 +601,75 @@ function CMSModal({modal,onClose,onSaveColumn,onSavePostType,onSavePillar,onSave
   </div></div>}
 
 // ============================================================================
-// IMPORT IDEIAS MODAL
-// ============================================================================
-function ImportIdeasModal({ onClose, setPosts, user, savePostToBackend }) {
-  const [pasteText, setPasteText] = useState("");
-  const [error, setError] = useState(null);
-  const [result, setResult] = useState(null);
-  const fileInputRef = useRef(null);
-  const TYPE_MAP = { roteiro_video: "reel", carrossel: "carrossel", ideia: "static", checklist: "static" };
-  const runImport = (text) => {
-    setError(null);
-    setResult(null);
-    const trimmed = (text || "").trim();
-    if (!trimmed) {
-      setError("Digite ou envie um arquivo .txt com o conteúdo (blocos separados por ^^^^^).");
-      return;
-    }
-    const parsed = parseImportIdeasText(trimmed);
-    if (!parsed.length) {
-      setError("Nenhum post encontrado. Use blocos separados por ^^^^^ e marcadores como Roteiro: \"título\" ou CARROSSEL: \"título\".");
-      return;
-    }
-    const now = new Date().toISOString();
-    const newPosts = parsed.map((p) => {
-      const title = [p.precisa_adaptacao && "[Adaptar]", p.duplicata && "[Duplicata]", p.titulo].filter(Boolean).join(" ").trim() || p.titulo;
-      let notes = p.conteudo || "";
-      if (p.notas_producao) notes += "\n\n" + p.notas_producao;
-      if (p.precisa_adaptacao) notes += "\n\n[Precisa adaptação]";
-      if (p.duplicata) notes += "\n\n[Duplicata]";
-      return {
-        id: genId(),
-        column: "ideias_rascunhos",
-        type: TYPE_MAP[p.tipo] || "static",
-        title,
-        caption: "",
-        tags: [],
-        assignee: user.id,
-        createdBy: user.id,
-        createdAt: now,
-        updatedAt: now,
-        scheduledDate: null,
-        scheduledTime: null,
-        engagement: null,
-        notes,
-        links: [],
-        attachments: [],
-        aiScore: null,
-        aiSuggestion: null,
-      };
-    });
-    setPosts((prev) => [...prev, ...newPosts]);
-    newPosts.forEach((p) => { if (savePostToBackend) savePostToBackend(p).catch(() => {}); });
-    setResult(newPosts.length);
-    setPasteText("");
-  };
-  const onFileChange = (e) => {
-    const file = e.target?.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => { setPasteText(reader.result || ""); setError(null); };
-    reader.readAsText(file, "utf-8");
-    e.target.value = "";
-  };
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: T.surface, borderRadius: 14, border: `1px solid ${T.border}`, padding: 24, minWidth: 420, maxWidth: "90vw", maxHeight: "85vh", display: "flex", flexDirection: "column", animation: "scaleIn 0.2s", boxShadow: "0 20px 50px rgba(0,0,0,0.15)" }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ fontSize: 16, fontWeight: 800, color: T.text, margin: "0 0 8px" }}>Importar ideias em massa</h3>
-        <p style={{ fontSize: 12, color: T.textMuted, marginBottom: 14 }}>Use um .txt com blocos separados por ^^^^^ ou cole o texto abaixo. Cada bloco vira um card em Ideias e Rascunhos.</p>
-        <input ref={fileInputRef} type="file" accept=".txt" style={{ display: "none" }} onChange={onFileChange} />
-        <button type="button" onClick={() => fileInputRef.current?.click()} style={{ padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, border: `1px solid ${T.accentBorder}`, background: T.accentGlow, color: T.accent, cursor: "pointer", marginBottom: 12, alignSelf: "flex-start" }}>Enviar arquivo .txt</button>
-        <textarea value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder={'Cole aqui o conteúdo (blocos separados por ^^^^^, use Roteiro: "título" ou CARROSSEL: "título")...'} style={{ width: "100%", minHeight: 160, background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 12px", color: T.text, fontSize: 12, fontFamily: T.font, resize: "vertical", outline: "none", marginBottom: 10 }} />
-        {error && <p style={{ fontSize: 12, color: T.red, marginBottom: 10 }}>{error}</p>}
-        {result !== null && <p style={{ fontSize: 12, color: T.green, marginBottom: 10 }}>{result} ideias importadas para Ideias e Rascunhos.</p>}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
-          <button type="button" onClick={onClose} style={{ padding: "8px 14px", borderRadius: 8, fontSize: 12, border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, cursor: "pointer" }}>Fechar</button>
-          <button type="button" onClick={() => runImport(pasteText)} style={{ padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, border: "none", background: T.accent, color: T.accentText, cursor: "pointer" }}>Importar</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
 // MAIN APP
 // ============================================================================
 export default function App(){
   const[theme,setTheme]=useState(()=>{try{return typeof localStorage!=="undefined"?localStorage.getItem(THEME_STORAGE_KEY)||"dark":"dark"}catch(e){return"dark"}});
-  Object.assign(T,theme==="light"?T_LIGHT:T_DARK);
+  setThemeTokens(theme);
   useEffect(()=>{try{typeof localStorage!=="undefined"&&localStorage.setItem(THEME_STORAGE_KEY,theme)}catch(e){}},[theme]);
   const[cms,setCms]=useState(loadCms);
-  useEffect(()=>{saveCms(cms);if(isSupabaseConfigured())saveCmsCloud(cms).catch(()=>{})},[cms]);
+  const[syncLoading,setSyncLoading]=useState(!!isSupabaseConfigured());
+  const[syncError,setSyncError]=useState(null);
+  const[saveError,setSaveError]=useState(null);
+
+  useEffect(()=>{
+    if(!isSupabaseConfigured()){ setSyncLoading(false); return; }
+    let cancelled=false;
+    setSyncError(null);
+    Promise.all([fetchCms(),fetchPosts()])
+      .then(([cmsData,postsData])=>{
+        if(cancelled)return;
+        if(cmsData&&typeof cmsData==="object")setCms(prev=>({...defaultCms(),...prev,...cmsData,columns:cmsData.columns?.length?cmsData.columns:prev.columns,postTypes:cmsData.postTypes?.length?cmsData.postTypes:prev.postTypes,pillars:cmsData.pillars?.length?cmsData.pillars:prev.pillars,users:cmsData.users?.length?cmsData.users:prev.users}));
+        if(postsData&&Array.isArray(postsData))setPosts(postsData);
+      })
+      .catch(err=>{ if(!cancelled)setSyncError(err?.message||"Falha ao carregar dados"); })
+      .finally(()=>{ if(!cancelled)setSyncLoading(false); });
+    return ()=>{ cancelled=true; };
+  },[]);
+
+  useEffect(()=>{saveCms(cms);if(isSupabaseConfigured())saveCmsCloud(cms).catch(err=>setSaveError(err?.message||"Erro ao salvar CMS"))},[cms]);
   const[posts,setPosts]=useState(loadPosts);const[view,setView]=useState("board");
   useEffect(()=>{savePosts(posts)},[posts]);
-  useEffect(()=>{},[]);
   const users=cms.users?.length?cms.users:USERS;const columns=cms.columns?.length?cms.columns:COLUMNS;const postTypes=cms.postTypes?.length?cms.postTypes:POST_TYPES;const pillars=cms.pillars?.length?cms.pillars:PILLARS;
   const[user,setUser]=useState(()=>{const L=loadCms();return L.users?.length?L.users[0]:USERS[0]});
   useEffect(()=>{if(users.length&&!users.some(u=>u.id===user.id))setUser(users[0])},[users.map(u=>u.id).join(",")]);
   const[editPost,setEditPost]=useState(null);const[dp,setDp]=useState(null);const[showAI,setShowAI]=useState(false);const[showImportIdeas,setShowImportIdeas]=useState(false);const[filter,setFilter]=useState({type:null});const[search,setSearch]=useState("");
   const cardFormFieldIds=cms.cardFormFieldIds??CARD_FORM_FIELDS.map(f=>f.id);const setCardFormFieldIds=useCallback(ids=>setCms(prev=>({...prev,cardFormFieldIds:ids})),[]);
-  const save=useCallback(p=>{setPosts(prev=>prev.find(x=>x.id===p.id)?prev.map(x=>x.id===p.id?p:x):[...prev,p]);if(isSupabaseConfigured())savePost(p).catch(()=>{})},[]);
-  const del=useCallback(id=>{setPosts(prev=>prev.filter(x=>x.id!==id));if(isSupabaseConfigured())deletePost(id).catch(()=>{})},[]);
-  const drop=useCallback(colId=>{if(dp&&dp.column!==colId){const updated={...dp,column:colId};setPosts(prev=>prev.map(p=>p.id===dp.id?updated:p));if(isSupabaseConfigured())savePost(updated).catch(()=>{})}setDp(null)},[dp]);
+  const save=useCallback(p=>{
+    setSaveError(null);
+    setPosts(prev=>prev.find(x=>x.id===p.id)?prev.map(x=>x.id===p.id?p:x):[...prev,p]);
+    if(isSupabaseConfigured())savePost(p).catch(err=>setSaveError(err?.message||"Erro ao salvar"));
+  },[]);
+  const del=useCallback(id=>{
+    setSaveError(null);
+    setPosts(prev=>prev.filter(x=>x.id!==id));
+    if(isSupabaseConfigured())deletePost(id).catch(err=>setSaveError(err?.message||"Erro ao excluir"));
+  },[]);
+  const drop=useCallback(colId=>{
+    if(dp&&dp.column!==colId){
+      setSaveError(null);
+      const updated={...dp,column:colId};
+      setPosts(prev=>prev.map(p=>p.id===dp.id?updated:p));
+      if(isSupabaseConfigured())savePost(updated).catch(err=>setSaveError(err?.message||"Erro ao mover"));
+    }
+    setDp(null);
+  },[dp]);
   const newP=useCallback(colId=>{setEditPost({id:genId(),column:colId,type:"reel",title:"",caption:"",tags:[],assignee:user.id,createdBy:user.id,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),scheduledDate:null,scheduledTime:null,engagement:null,notes:"",links:[],attachments:[],aiScore:null,aiSuggestion:null})},[user.id]);
   const filtered=useMemo(()=>posts.filter(p=>{if(search&&!p.title.toLowerCase().includes(search.toLowerCase())&&!p.caption.toLowerCase().includes(search.toLowerCase()))return false;if(filter.type&&p.type!==filter.type)return false;return true}),[posts,filter,search]);
   const readyColumnIds=cms.readyColumnIds??["agendado"];const readyCount=useMemo(()=>posts.filter(p=>readyColumnIds.includes(p.column)).length,[posts,readyColumnIds]);
   const navs=[{id:"board",l:"Board",i:"◻"},{id:"calendar",l:"Calendário",i:"◫"},{id:"cms",l:"CMS",i:"📋"}];
   return<div data-theme={theme}style={{minHeight:"100vh",background:T.bg,fontFamily:T.font,color:T.text}}><style>{CSS}</style>
+    {(syncError||saveError)&&<div style={{padding:"6px 16px",background:(syncError?T.red:T.yellow)+"22",color:syncError?T.red:T.yellow,fontSize:11,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}} role="alert"><span>{syncError||saveError}</span><button type="button"aria-label="Fechar mensagem"onClick={()=>{setSyncError(null);setSaveError(null)}}style={{background:"transparent",border:"none",color:"inherit",cursor:"pointer",fontSize:14}}>✕</button></div>}
+    {syncLoading&&<div style={{height:3,background:T.border,overflow:"hidden"}} aria-hidden="true"><div style={{height:"100%",width:"30%",background:T.accent,animation:"pulse 1.5s ease-in-out infinite"}}/></div>}
     <header style={{height:48,padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${T.border}`,background:T.surface,backdropFilter:"blur(12px)",position:"sticky",top:0,zIndex:100,boxShadow:"0 1px 0 0 "+T.border}}>
       <div style={{display:"flex",alignItems:"center",gap:12}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:28,height:28,borderRadius:8,background:`linear-gradient(135deg,${T.accent},${T.yellow})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:T.logoText||"#FFF",fontFamily:T.mono}}>C</div><span style={{fontSize:14,fontWeight:800,background:`linear-gradient(135deg,${T.accent},${T.yellow})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>CORATERIA</span></div>
         <div style={{width:1,height:18,background:T.border,opacity:0.8}}/>
-        <div style={{display:"flex",gap:2,background:T.card,borderRadius:8,padding:3}}>{navs.map(v=><button key={v.id}onClick={()=>setView(v.id)}style={{padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:T.font,background:view===v.id?T.accentGlow:"transparent",color:view===v.id?T.accent:T.textMuted,transition:"all 0.15s"}}>{v.i} {v.l}</button>)}</div>
+        <div style={{display:"flex",gap:2,background:T.card,borderRadius:8,padding:3}} role="tablist">{navs.map(v=><button key={v.id}type="button"role="tab"aria-selected={view===v.id}aria-label={`Ver ${v.l}`}onClick={()=>setView(v.id)}style={{padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:T.font,background:view===v.id?T.accentGlow:"transparent",color:view===v.id?T.accent:T.textMuted,transition:"all 0.15s"}}>{v.i} {v.l}</button>)}</div>
         <button onClick={()=>setShowImportIdeas(true)}style={{padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,border:`1px solid ${T.accentBorder}`,background:"transparent",color:T.accent,cursor:"pointer",fontFamily:T.font}}>Importar ideias</button>
       </div>
       <div style={{flex:1,maxWidth:240,margin:"0 16px"}}><input value={search}onChange={e=>setSearch(e.target.value)}placeholder="Buscar..."style={{width:"100%",background:T.card,border:`1px solid ${T.border}`,borderRadius:8,padding:"6px 12px",color:T.text,fontSize:11.5,fontFamily:T.font,outline:"none"}}onFocus={e=>e.target.style.borderColor=T.accentBorder}onBlur={e=>e.target.style.borderColor=T.border}/></div>
-      <div style={{display:"flex",alignItems:"center",gap:6}}><div style={{display:"flex",gap:2}}>{postTypes.map(pt=><IconBtn key={pt.id}small active={filter.type===pt.id}onClick={()=>setFilter(f=>({type:f.type===pt.id?null:pt.id}))}>{pt.icon}</IconBtn>)}</div><div style={{width:1,height:16,background:T.border,opacity:0.8}}/><button title={theme==="light"?"Modo escuro":"Modo claro"}onClick={()=>setTheme(t=>t==="light"?"dark":"light")}style={{width:30,height:30,borderRadius:6,border:`1px solid ${T.border}`,background:"transparent",color:T.textMuted,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>{theme==="light"?"🌙":"☀️"}</button><button title="Notificações"style={{width:30,height:30,borderRadius:6,border:`1px solid ${T.border}`,background:"transparent",color:T.textMuted,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>🔔</button><div style={{display:"flex",gap:2,background:T.card,borderRadius:6,padding:2}}>{users.map(u=><button key={u.id}onClick={()=>setUser(u)}style={{display:"flex",alignItems:"center",gap:3,padding:"3px 8px",borderRadius:4,fontSize:10.5,fontWeight:600,border:user.id===u.id?`1px solid ${u.color}50`:"1px solid transparent",background:user.id===u.id?`${u.color}12`:"transparent",color:user.id===u.id?u.color:T.textMuted,cursor:"pointer",fontFamily:T.font}}><Avatar user={u.id}users={users}size={14}/>{u.name}</button>)}</div></div>
+      <div style={{display:"flex",alignItems:"center",gap:6}}><div style={{display:"flex",gap:2}}>{postTypes.map(pt=><IconBtn key={pt.id}small active={filter.type===pt.id}onClick={()=>setFilter(f=>({type:f.type===pt.id?null:pt.id}))}>{pt.icon}</IconBtn>)}</div><div style={{width:1,height:16,background:T.border,opacity:0.8}}/><button type="button"aria-label={theme==="light"?"Modo escuro":"Modo claro"}title={theme==="light"?"Modo escuro":"Modo claro"}onClick={()=>setTheme(t=>t==="light"?"dark":"light")}style={{width:30,height:30,borderRadius:6,border:`1px solid ${T.border}`,background:"transparent",color:T.textMuted,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>{theme==="light"?"🌙":"☀️"}</button><button type="button"aria-label="Notificações"title="Notificações"style={{width:30,height:30,borderRadius:6,border:`1px solid ${T.border}`,background:"transparent",color:T.textMuted,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>🔔</button><div style={{display:"flex",gap:2,background:T.card,borderRadius:6,padding:2}}>{users.map(u=><button key={u.id}onClick={()=>setUser(u)}style={{display:"flex",alignItems:"center",gap:3,padding:"3px 8px",borderRadius:4,fontSize:10.5,fontWeight:600,border:user.id===u.id?`1px solid ${u.color}50`:"1px solid transparent",background:user.id===u.id?`${u.color}12`:"transparent",color:user.id===u.id?u.color:T.textMuted,cursor:"pointer",fontFamily:T.font}}><Avatar user={u.id}users={users}size={14}/>{u.name}</button>)}</div></div>
     </header>
     <main>{view==="board"&&<div style={{display:"flex",gap:14,padding:"16px 20px",overflowX:"auto",minHeight:"calc(100vh - 96px)",alignItems:"flex-start"}}>{columns.map(c=><KanbanCol key={c.id}col={c}posts={filtered.filter(p=>p.column===c.id)}onEdit={setEditPost}onDragStart={setDp}onDrop={drop}dp={dp}onNew={newP}users={users}postTypes={postTypes}pillars={pillars}/>)}</div>}{view==="calendar"&&<CalView posts={posts}onEdit={setEditPost}onNewCard={()=>newP("agendado")}postTypes={postTypes}specialDates={cms.specialDates}/>}{view==="cms"&&<CMSView cms={cms}setCms={setCms}columns={columns}postTypes={postTypes}pillars={pillars}users={users}cardFormFieldIds={cardFormFieldIds}setCardFormFieldIds={setCardFormFieldIds}setPosts={setPosts}/>}</main>
     {editPost&&<PostEditor post={editPost}onSave={p=>{save(p);setEditPost(null)}}onClose={()=>setEditPost(null)}onDelete={id=>{del(id);setEditPost(null)}}visibleFields={cardFormFieldIds}columns={columns}postTypes={postTypes}pillars={pillars}users={users}/>}
