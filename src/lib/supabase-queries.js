@@ -2,7 +2,7 @@ import { supabase, isSupabaseConfigured } from "./supabase";
 
 export { isSupabaseConfigured };
 
-function rowToPost(row, metrics = null) {
+export function rowToPost(row, metrics = null) {
   const engagement = metrics
     ? {
         likes: metrics.likes ?? 0,
@@ -182,4 +182,35 @@ export async function saveCms(payload) {
     .from("app_cms")
     .upsert({ key: CMS_KEY, payload, updated_at: new Date().toISOString() }, { onConflict: "key" });
   return { error };
+}
+
+/**
+ * Subscribe to posts table for realtime (Trello-like: everyone sees updates).
+ * Returns unsubscribe function.
+ */
+export function subscribeToPosts(setPosts) {
+  if (!supabase) return () => {};
+  const channel = supabase
+    .channel("posts-realtime")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "posts" },
+      (payload) => {
+        if (payload.eventType === "INSERT" && payload.new) {
+          setPosts((prev) => [...prev, rowToPost(payload.new)]);
+        } else if (payload.eventType === "UPDATE" && payload.new) {
+          const id = payload.new.app_id || payload.new.id;
+          setPosts((prev) =>
+            prev.map((p) => (p.id === id ? rowToPost(payload.new) : p))
+          );
+        } else if (payload.eventType === "DELETE" && payload.old) {
+          const id = payload.old.app_id || payload.old.id;
+          setPosts((prev) => prev.filter((p) => p.id !== id));
+        }
+      }
+    )
+    .subscribe();
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }

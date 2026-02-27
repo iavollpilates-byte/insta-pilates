@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { fetchPosts, savePost, deletePost, isSupabaseConfigured, fetchCms, saveCms as saveCmsCloud } from "@/lib/supabase-queries";
+import { fetchPosts, savePost, deletePost, isSupabaseConfigured, fetchCms, saveCms as saveCmsCloud, subscribeToPosts } from "@/lib/supabase-queries";
 import {
   T,
   T_DARK,
@@ -617,7 +617,7 @@ export default function App(){
       .then(([cmsData,postsData])=>{
         if(cancelled)return;
         if(cmsData&&typeof cmsData==="object"&&(cmsData.columns?.length>0||cmsData.postTypes?.length>0||cmsData.pillars?.length>0||cmsData.users?.length>0))setCms(prev=>({...defaultCms(),...prev,...cmsData,columns:cmsData.columns?.length?cmsData.columns:prev.columns,postTypes:cmsData.postTypes?.length?cmsData.postTypes:prev.postTypes,pillars:cmsData.pillars?.length?cmsData.pillars:prev.pillars,users:cmsData.users?.length?cmsData.users:prev.users}));
-        if(postsData&&Array.isArray(postsData)&&postsData.length>0)setPosts(postsData);
+        if(isSupabaseConfigured())setPosts(Array.isArray(postsData)?postsData:[]);
       })
       .catch(err=>{ if(!cancelled)setSyncError(err?.message||"Falha ao carregar dados"); })
       .finally(()=>{ if(!cancelled)setSyncLoading(false); });
@@ -627,8 +627,17 @@ export default function App(){
   useEffect(()=>{saveCms(cms);if(isSupabaseConfigured())saveCmsCloud(cms).catch(err=>setSaveError(err?.message||"Erro ao salvar CMS"))},[cms]);
   const[posts,setPosts]=useState([]);
   const postsHydratedRef=useRef(false);
-  useEffect(()=>{ setPosts(loadPosts()); postsHydratedRef.current=true; },[]);
-  useEffect(()=>{ if(postsHydratedRef.current) savePosts(posts); },[posts]);
+  useEffect(()=>{
+    if(!isSupabaseConfigured()){ setPosts(loadPosts()); postsHydratedRef.current=true; }
+  },[]);
+  useEffect(()=>{
+    if(!isSupabaseConfigured()&&postsHydratedRef.current) savePosts(posts);
+  },[posts]);
+  useEffect(()=>{
+    if(!isSupabaseConfigured()||syncLoading) return;
+    const unsub=subscribeToPosts(setPosts);
+    return unsub;
+  },[syncLoading]);
   const[view,setView]=useState("board");
   const users=cms.users?.length?cms.users:USERS;const columns=cms.columns?.length?cms.columns:COLUMNS;const postTypes=cms.postTypes?.length?cms.postTypes:POST_TYPES;const pillars=cms.pillars?.length?cms.pillars:PILLARS;
   const[user,setUser]=useState(()=>{const L=loadCms();return L.users?.length?L.users[0]:USERS[0]});
