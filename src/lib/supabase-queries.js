@@ -186,9 +186,10 @@ export async function saveCms(payload) {
 
 /**
  * Subscribe to posts table for realtime (Trello-like: everyone sees updates).
+ * onStatusChange(connected: boolean) is called when subscription becomes SUBSCRIBED (true) or disconnects (false).
  * Returns unsubscribe function.
  */
-export function subscribeToPosts(setPosts) {
+export function subscribeToPosts(setPosts, onStatusChange) {
   if (!supabase) return () => {};
   const channel = supabase
     .channel("posts-realtime")
@@ -209,8 +210,11 @@ export function subscribeToPosts(setPosts) {
         }
       }
     )
-    .subscribe();
+    .subscribe((status) => {
+      if (onStatusChange) onStatusChange(status === "SUBSCRIBED");
+    });
   return () => {
+    if (onStatusChange) onStatusChange(false);
     supabase.removeChannel(channel);
   };
 }
