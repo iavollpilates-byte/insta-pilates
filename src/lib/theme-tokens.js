@@ -229,7 +229,16 @@ export function savePosts(posts, accountSlug) {
 }
 
 export const genId = () => "x" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-export const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "");
+/** Formata data para exibição (pt-BR). Strings YYYY-MM-DD são tratadas como data local para evitar deslocamento de um dia por timezone. */
+export const fmtDate = (d) => {
+  if (!d) return "";
+  const str = String(d).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const [y, m, day] = str.split("-").map(Number);
+    return new Date(y, m - 1, day).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  }
+  return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+};
 export const fmtNum = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n));
 
 export const DAY_NAMES = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
