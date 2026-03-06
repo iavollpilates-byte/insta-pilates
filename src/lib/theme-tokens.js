@@ -162,6 +162,8 @@ export function defaultCms() {
       draftEnabled: true,
       draftDaysStale: 7,
       specialDatesDaysBefore: 12,
+      agendadoMinEnabled: true,
+      agendadoMinCards: 3,
     },
     specialDates: [],
     pageBackgrounds: { board: "", calendar: "", cms: "" },
