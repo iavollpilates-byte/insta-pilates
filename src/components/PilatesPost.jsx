@@ -427,7 +427,7 @@ function KanbanCol({col,posts,onEdit,onDragStart,onDrop,dp,onNew,users,postTypes
   return<div onDragOver={e=>{e.preventDefault();setDg(true)}}onDragLeave={()=>setDg(false)}onDrop={e=>{e.preventDefault();setDg(false);onDrop(col.id)}}style={{minWidth:272,maxWidth:272,display:"flex",flexDirection:"column",borderRadius:14,border:dg&&dp?.column!==col.id?`1px dashed ${T.accentBorder}`:`1px solid ${T.border}`,transition:"all 0.2s",background:dg&&dp?.column!==col.id?"rgba(255,107,53,0.03)":T.card}}>
     <div style={{padding:"10px 10px 8px",borderBottom:`2px solid ${col.color}40`,marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:13}}>{col.icon}</span><div style={{fontWeight:700,fontSize:12,color:T.text}}>{col.label}</div></div><span style={{background:`${col.color}15`,color:col.color,fontSize:10,fontWeight:800,width:20,height:20,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:T.mono}}>{posts.length}</span></div>
     {showLowStockAlert&&<div role="alert" aria-live="polite" style={{margin:"0 6px 8px",padding:"8px 10px",background:"rgba(255,87,87,0.12)",border:`1px solid ${T.red}40`,borderRadius:8,fontSize:11,color:T.red,fontWeight:600,display:"flex",alignItems:"center",gap:6}}><span aria-hidden="true">⚠️</span>Menos de {agendadoMinCards} posts agendados — acelere a produção.</div>}
-    <div style={{flex:1,overflowY:"auto",padding:"0 6px 6px"}}>{posts.map(p=><PostCard key={p.id}post={p}onEdit={onEdit}onDragStart={onDragStart}isDragging={dp?.id===p.id}users={users}postTypes={postTypes}pillars={pillars}/>)}</div>
+    <div data-col-scroll data-col-id={col.id} style={{flex:1,overflowY:"auto",padding:"0 6px 6px"}}>{posts.map(p=><PostCard key={p.id}post={p}onEdit={onEdit}onDragStart={onDragStart}isDragging={dp?.id===p.id}users={users}postTypes={postTypes}pillars={pillars}/>)}</div>
     {col.id!=="publicado"&&<button onClick={()=>onNew(col.id)}style={{margin:"4px 6px 8px",padding:8,background:"transparent",border:`1px dashed ${T.border}`,borderRadius:8,color:T.textDim,fontSize:11,cursor:"pointer",fontFamily:T.font}}onMouseEnter={e=>{e.target.style.borderColor=T.accentBorder;e.target.style.color=T.accent}}onMouseLeave={e=>{e.target.style.borderColor=T.border;e.target.style.color=T.textDim}}>+ Novo</button>}
   </div>}
 
@@ -648,6 +648,7 @@ export default function App(){
   const[posts,setPosts]=useState([]);
   const postsHydratedRef=useRef(false);
   const skipFirstLocalPersistRef=useRef(true);
+  const boardRef=useRef(null);
   const[realtimeConnected,setRealtimeConnected]=useState(false);
   useEffect(()=>{
     if(!isSupabaseConfigured()&&currentAccount!=null){
@@ -727,6 +728,29 @@ export default function App(){
     if(forThisView!=null&&String(forThisView).trim())return String(forThisView).trim();
     return currentAccount?.slug==="clara"?`linear-gradient(rgba(255,182,193,0.06) 0%, rgba(255,182,193,0.06) 100%), ${T.bg}`:T.bg;
   },[view,cms.pageBackgrounds,currentAccount?.slug,T.bg]);
+  const DRAG_SCROLL_ZONE=80;const DRAG_SCROLL_ZONE_V=60;const DRAG_SCROLL_STEP=10;
+  useEffect(()=>{
+    if(!dp)return;
+    const onDragOver=(e)=>{
+      e.preventDefault();
+      const {clientX,clientY}=e;
+      const board=boardRef.current;
+      if(board){
+        const rect=board.getBoundingClientRect();
+        if(clientX<=rect.left+DRAG_SCROLL_ZONE)board.scrollLeft=Math.max(0,board.scrollLeft-DRAG_SCROLL_STEP);
+        else if(clientX>=rect.right-DRAG_SCROLL_ZONE)board.scrollLeft=Math.min(board.scrollWidth-board.clientWidth,board.scrollLeft+DRAG_SCROLL_STEP);
+      }
+      const under=document.elementFromPoint(clientX,clientY);
+      const colScroll=under?.closest?.("[data-col-scroll]");
+      if(colScroll){
+        const rect=colScroll.getBoundingClientRect();
+        if(clientY<=rect.top+DRAG_SCROLL_ZONE_V)colScroll.scrollTop=Math.max(0,colScroll.scrollTop-DRAG_SCROLL_STEP);
+        else if(clientY>=rect.bottom-DRAG_SCROLL_ZONE_V)colScroll.scrollTop=Math.min(colScroll.scrollHeight-colScroll.clientHeight,colScroll.scrollTop+DRAG_SCROLL_STEP);
+      }
+    };
+    document.addEventListener("dragover",onDragOver);
+    return ()=>document.removeEventListener("dragover",onDragOver);
+  },[dp]);
   return<div data-theme={theme}style={{minHeight:"100vh",background:rootBackground,fontFamily:T.font,color:T.text}}>
     {(syncError||saveError)&&<div style={{padding:"6px 16px",background:(syncError?T.red:T.yellow)+"22",color:syncError?T.red:T.yellow,fontSize:11,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}} role="alert"><span>{syncError||saveError}</span><button type="button"aria-label="Fechar mensagem"onClick={()=>{setSyncError(null);setSaveError(null);try{localStorage.removeItem("pilatespost_last_save_error")}catch(e){}}}style={{background:"transparent",border:"none",color:"inherit",cursor:"pointer",fontSize:14}}>✕</button></div>}
     {syncLoading&&<div style={{height:3,background:T.border,overflow:"hidden"}} aria-hidden="true"><div style={{height:"100%",width:"30%",background:T.accent,animation:"pulse 1.5s ease-in-out infinite"}}/></div>}
@@ -776,7 +800,7 @@ export default function App(){
       <div style={{flex:1,maxWidth:240,margin:"0 16px"}}><input value={search}onChange={e=>setSearch(e.target.value)}placeholder="Buscar..."style={{width:"100%",background:T.card,border:`1px solid ${T.border}`,borderRadius:8,padding:"6px 12px",color:T.text,fontSize:11.5,fontFamily:T.font,outline:"none"}}onFocus={e=>e.target.style.borderColor=T.accentBorder}onBlur={e=>e.target.style.borderColor=T.border}/></div>
       <div style={{display:"flex",alignItems:"center",gap:6}}>{isSupabaseConfigured()&&realtimeConnected&&<span title="Sync em tempo real ativo" style={{display:"flex",alignItems:"center",gap:5,padding:"4px 8px",borderRadius:6,background:"#22c55e18",color:"#22c55e",fontSize:10,fontWeight:600}}><span style={{width:6,height:6,borderRadius:"50%",background:"#22c55e",boxShadow:"0 0 0 2px #22c55e40"}} aria-hidden="true"/><span>Ao vivo</span></span>}<div style={{display:"flex",gap:2}}>{postTypes.map(pt=><IconBtn key={pt.id}small active={filter.type===pt.id}onClick={()=>setFilter(f=>({type:f.type===pt.id?null:pt.id}))}>{pt.icon}</IconBtn>)}</div><div style={{width:1,height:16,background:T.border,opacity:0.8}}/><button type="button"aria-label={theme==="light"?"Modo escuro":"Modo claro"}title={theme==="light"?"Modo escuro":"Modo claro"}onClick={()=>setTheme(t=>t==="light"?"dark":"light")}style={{width:30,height:30,borderRadius:6,border:`1px solid ${T.border}`,background:"transparent",color:T.textMuted,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>{theme==="light"?"🌙":"☀️"}</button><button type="button"aria-label="Notificações"title="Notificações"style={{width:30,height:30,borderRadius:6,border:`1px solid ${T.border}`,background:"transparent",color:T.textMuted,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>🔔</button><div style={{display:"flex",gap:2,background:T.card,borderRadius:6,padding:2}}>{users.map(u=><button key={u.id}onClick={()=>setUser(u)}style={{display:"flex",alignItems:"center",gap:3,padding:"3px 8px",borderRadius:4,fontSize:10.5,fontWeight:600,border:user.id===u.id?`1px solid ${u.color}50`:"1px solid transparent",background:user.id===u.id?`${u.color}12`:"transparent",color:user.id===u.id?u.color:T.textMuted,cursor:"pointer",fontFamily:T.font}}><Avatar user={u.id}users={users}size={14}/>{u.name}</button>)}</div></div>
     </header>
-    <main>{view==="board"&&<div style={{display:"flex",gap:14,padding:"16px 20px",overflowX:"auto",minHeight:"calc(100vh - 96px)",alignItems:"flex-start"}}>{columns.map(c=><KanbanCol key={c.id}col={c}posts={filtered.filter(p=>p.column===c.id)}onEdit={setEditPost}onDragStart={setDp}onDrop={drop}dp={dp}onNew={newP}users={users}postTypes={postTypes}pillars={pillars}showLowStockAlert={c.id==="agendado"&&showAgendadoLowAlert}agendadoMinCards={agendadoMinCards}/>)}</div>}{view==="calendar"&&<CalView posts={posts}onEdit={setEditPost}onNewCard={()=>newP("agendado")}postTypes={postTypes}specialDates={cms.specialDates}/>}{view==="cms"&&<CMSView cms={cms}setCms={setCms}columns={columns}postTypes={postTypes}pillars={pillars}users={users}cardFormFieldIds={cardFormFieldIds}setCardFormFieldIds={setCardFormFieldIds}setPosts={setPosts}/>}</main>
+    <main>{view==="board"&&<div ref={boardRef} style={{display:"flex",gap:14,padding:"16px 20px",overflowX:"auto",minHeight:"calc(100vh - 96px)",alignItems:"flex-start"}}>{columns.map(c=><KanbanCol key={c.id}col={c}posts={filtered.filter(p=>p.column===c.id)}onEdit={setEditPost}onDragStart={setDp}onDrop={drop}dp={dp}onNew={newP}users={users}postTypes={postTypes}pillars={pillars}showLowStockAlert={c.id==="agendado"&&showAgendadoLowAlert}agendadoMinCards={agendadoMinCards}/>)}</div>}{view==="calendar"&&<CalView posts={posts}onEdit={setEditPost}onNewCard={()=>newP("agendado")}postTypes={postTypes}specialDates={cms.specialDates}/>}{view==="cms"&&<CMSView cms={cms}setCms={setCms}columns={columns}postTypes={postTypes}pillars={pillars}users={users}cardFormFieldIds={cardFormFieldIds}setCardFormFieldIds={setCardFormFieldIds}setPosts={setPosts}/>}</main>
     {editPost&&<PostEditor post={editPost}onSave={p=>{save(p);setEditPost(null)}}onClose={()=>setEditPost(null)}onDelete={id=>{del(id);setEditPost(null)}}visibleFields={cardFormFieldIds}columns={columns}postTypes={postTypes}pillars={pillars}users={users}/>}
     {showAI&&<AIMentor onClose={()=>setShowAI(false)}/>}
     {showImportIdeas&&<ImportIdeasModal onClose={()=>setShowImportIdeas(false)} setPosts={setPosts} user={user} savePostToBackend={isSupabaseConfigured()?(p=>savePost(p,currentAccount?.id)):null}/>}
