@@ -415,7 +415,11 @@ function StoriesView(){
 
 // Post Card
 function PostCard({post,onEdit,onDragStart,isDragging,postTypes,pillars,users}){const[h,setH]=useState(false);const types=postTypes||POST_TYPES;const pils=pillars||PILLARS;const u=users||USERS;const ti=types.find(t=>t.id===post.type);const tags=post.tags.map(t=>pils.find(p=>p.id===t)).filter(Boolean);
-  return<div draggable onDragStart={e=>{e.dataTransfer.effectAllowed="move";onDragStart(post)}}onMouseEnter={()=>setH(true)}onMouseLeave={()=>setH(false)}onClick={()=>onEdit(post)}style={{background:h?T.cardHover:T.card,border:`1px solid ${h?T.borderHover:T.border}`,borderRadius:12,padding:"11px 13px",cursor:"grab",transition:"all 0.2s",marginBottom:6,opacity:isDragging?0.4:1,transform:h?"translateY(-1px)":"none",animation:"fadeIn 0.25s",boxShadow:h?"0 4px 12px rgba(0,0,0,0.06)":"none"}}>
+  return<div draggable onDragStart={e=>{
+    e.dataTransfer.effectAllowed="move";
+    const img=new Image();img.src="data:image/gif;base64,R0lGOODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";e.dataTransfer.setDragImage(img,0,0);
+    onDragStart(post);
+  }}onMouseEnter={()=>setH(true)}onMouseLeave={()=>setH(false)}onClick={()=>onEdit(post)}style={{background:h?T.cardHover:T.card,border:`1px solid ${h?T.borderHover:T.border}`,borderRadius:12,padding:"11px 13px",cursor:"grab",transition:"all 0.2s",marginBottom:6,opacity:isDragging?0.4:1,transform:h?"translateY(-1px)":"none",animation:"fadeIn 0.25s",boxShadow:h?"0 4px 12px rgba(0,0,0,0.06)":"none"}}>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}><div style={{display:"flex",alignItems:"center",gap:4}}><Badge color={ti?.color}style={{fontSize:9.5}}>{ti?.icon}{ti?.label}</Badge>{post.scheduledDate&&<span style={{fontSize:9.5,color:T.textDim}}>{fmtDate(post.scheduledDate)}</span>}</div><div style={{display:"flex",alignItems:"center",gap:4}}><AIS score={post.aiScore}/>{post.assignee&&<Avatar user={post.assignee}users={u}size={18}/>}</div></div>
     <div style={{color:T.text,fontWeight:650,fontSize:12.5,lineHeight:1.4,marginBottom:4}}>{post.title}</div>
     {tags.length>0&&<div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{tags.map(p=><span key={p.id}style={{fontSize:9,color:p.color,padding:"1px 5px",borderRadius:3,background:`${p.color}12`,fontWeight:500}}>#{p.label}</span>)}</div>}
@@ -735,17 +739,23 @@ export default function App(){
       e.preventDefault();
       const {clientX,clientY}=e;
       const board=boardRef.current;
+      const under=document.elementFromPoint(clientX,clientY);
+      const colScroll=under?.closest?.("[data-col-scroll]");
       if(board){
         const rect=board.getBoundingClientRect();
         if(clientX<=rect.left+DRAG_SCROLL_ZONE)board.scrollLeft=Math.max(0,board.scrollLeft-DRAG_SCROLL_STEP);
         else if(clientX>=rect.right-DRAG_SCROLL_ZONE)board.scrollLeft=Math.min(board.scrollWidth-board.clientWidth,board.scrollLeft+DRAG_SCROLL_STEP);
       }
-      const under=document.elementFromPoint(clientX,clientY);
-      const colScroll=under?.closest?.("[data-col-scroll]");
       if(colScroll){
         const rect=colScroll.getBoundingClientRect();
         if(clientY<=rect.top+DRAG_SCROLL_ZONE_V)colScroll.scrollTop=Math.max(0,colScroll.scrollTop-DRAG_SCROLL_STEP);
         else if(clientY>=rect.bottom-DRAG_SCROLL_ZONE_V)colScroll.scrollTop=Math.min(colScroll.scrollHeight-colScroll.clientHeight,colScroll.scrollTop+DRAG_SCROLL_STEP);
+      }
+      const sourceCol=dp?.column&&typeof document!=="undefined"?document.querySelector(`[data-col-id="${dp.column}"]`):null;
+      if(sourceCol){
+        const vh=typeof window!=="undefined"?window.innerHeight:0;
+        if(vh&&clientY<=DRAG_SCROLL_ZONE_V)sourceCol.scrollTop=Math.max(0,sourceCol.scrollTop-DRAG_SCROLL_STEP);
+        else if(vh&&clientY>=vh-DRAG_SCROLL_ZONE_V)sourceCol.scrollTop=Math.min(sourceCol.scrollHeight-sourceCol.clientHeight,sourceCol.scrollTop+DRAG_SCROLL_STEP);
       }
     };
     document.addEventListener("dragover",onDragOver);
